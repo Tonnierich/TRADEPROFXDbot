@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { observer } from 'mobx-react-lite';
-import { standalone_routes } from '@/components/shared';
+import { standalone_routes, generateOAuthURL } from '@/components/shared'; // Added generateOAuthURL import
 import Button from '@/components/shared_ui/button';
 import useActiveAccount from '@/hooks/api/account/useActiveAccount';
 import { useOauth2 } from '@/hooks/auth/useOauth2';
@@ -8,7 +8,8 @@ import useGrowthbookGetFeatureValue from '@/hooks/growthbook/useGrowthbookGetFea
 import { useApiBase } from '@/hooks/useApiBase';
 import { useStore } from '@/hooks/useStore';
 import { StandaloneCircleUserRegularIcon } from '@deriv/quill-icons/Standalone';
-import { requestOidcAuthentication } from '@deriv-com/auth-client';
+// Removed requestOidcAuthentication import
+// import { requestOidcAuthentication } from '@deriv-com/auth-client';
 import { Localize, useTranslations } from '@deriv-com/translations';
 import { Header, useDevice, Wrapper } from '@deriv-com/ui';
 import { Tooltip } from '@deriv-com/ui';
@@ -122,28 +123,26 @@ const AppHeader = observer(() => {
                 <div className='auth-actions'>
                     <Button
                         tertiary
-                        onClick={async () => {
+                        onClick={() => {
                             const getQueryParams = new URLSearchParams(window.location.search);
                             const currency = getQueryParams.get('account') ?? '';
                             const query_param_currency =
                                 sessionStorage.getItem('query_param_currency') || currency || 'USD';
+                            
+                            // Store the currency in session storage before redirecting
+                            if (query_param_currency) {
+                                sessionStorage.setItem('query_param_currency', query_param_currency);
+                            }
+                            
                             try {
-                                await requestOidcAuthentication({
-                                    redirectCallbackUri: `${window.location.origin}/callback`,
-                                    ...(query_param_currency
-                                        ? {
-                                              state: {
-                                                  account: query_param_currency,
-                                              },
-                                          }
-                                        : {}),
-                                }).catch(err => {
-                                    // eslint-disable-next-line no-console
-                                    console.error(err);
-                                });
+                                // Log the OAuth URL for debugging
+                                console.log('Redirecting to OAuth URL:', generateOAuthURL());
+                                
+                                // Redirect to the custom OAuth URL
+                                window.location.replace(generateOAuthURL());
                             } catch (error) {
                                 // eslint-disable-next-line no-console
-                                console.error(error);
+                                console.error('Error redirecting to OAuth URL:', error);
                             }
                         }}
                     >
