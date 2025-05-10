@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from 'react';  // Make sure this import exists
 import { useEffect } from 'react';
 import Cookies from 'js-cookie';
 import RootStore from '@/stores/root-store';
@@ -58,9 +58,14 @@ export const useOauth2 = ({
         client?.setIsLoggingOut(true);
         try {
             await OAuth2Logout({
-                redirectCallbackUri: `${window.location.origin}/callback`,
+                // Use dynamic URL for flexibility between environments
+                redirectCallbackUri: window.location.hostname === 'frankfxdbot.pages.dev' 
+                    ? 'https://frankfxdbot.pages.dev/callback' 
+                    : `${window.location.origin}/callback`,
                 WSLogoutAndRedirect: handleLogout ?? (() => Promise.resolve()),
-                postLogoutRedirectUri: window.location.origin,
+                postLogoutRedirectUri: window.location.hostname === 'frankfxdbot.pages.dev'
+                    ? 'https://frankfxdbot.pages.dev'
+                    : window.location.origin,
             }).catch(err => {
                 // eslint-disable-next-line no-console
                 console.error(err);
@@ -70,11 +75,19 @@ export const useOauth2 = ({
             console.error(error);
         }
     };
+    
     const retriggerOAuth2Login = async () => {
         try {
             await requestOidcAuthentication({
-                redirectCallbackUri: `${window.location.origin}/callback`,
-                postLogoutRedirectUri: window.location.origin,
+                // Use dynamic URL for flexibility between environments
+                redirectCallbackUri: window.location.hostname === 'frankfxdbot.pages.dev' 
+                    ? 'https://frankfxdbot.pages.dev/callback' 
+                    : `${window.location.origin}/callback`,
+                postLogoutRedirectUri: window.location.hostname === 'frankfxdbot.pages.dev'
+                    ? 'https://frankfxdbot.pages.dev'
+                    : window.location.origin,
+                // Try adding clientId
+                clientId: '75760',
             }).catch(err => {
                 // eslint-disable-next-line no-console
                 console.error('Error during OAuth2 login retrigger:', err);
