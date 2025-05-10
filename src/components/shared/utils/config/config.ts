@@ -23,6 +23,8 @@ export const domain_app_ids = {
     'dbot.deriv.com': APP_IDS.PRODUCTION,
     'dbot.deriv.be': APP_IDS.PRODUCTION_BE,
     'dbot.deriv.me': APP_IDS.PRODUCTION_ME,
+    // Add your domain here
+    'frankfxdbot.pages.dev': APP_IDS.LOCALHOST,
 };
 
 export const getCurrentProductionDomain = () =>
@@ -38,6 +40,7 @@ export const isTestLink = () => {
     return (
         window.location.origin?.includes('.binary.sx') ||
         window.location.origin?.includes('bot-65f.pages.dev') ||
+        window.location.origin?.includes('frankfxdbot.pages.dev') || // Add your domain here
         isLocal()
     );
 };
@@ -82,6 +85,11 @@ export const getAppId = () => {
     let app_id = null;
     const config_app_id = window.localStorage.getItem('config.app_id');
     const current_domain = getCurrentProductionDomain() ?? '';
+
+    // Always use 75760 for frankfxdbot.pages.dev
+    if (window.location.hostname === 'frankfxdbot.pages.dev') {
+        return APP_IDS.LOCALHOST; // 75760
+    }
 
     if (config_app_id) {
         app_id = config_app_id;
@@ -146,6 +154,10 @@ export const generateOAuthURL = () => {
     const { getOauthURL } = URLUtils;
     const oauth_url = getOauthURL();
     const original_url = new URL(oauth_url);
+    
+    // Ensure app_id parameter is set to 75760
+    original_url.searchParams.set('app_id', '75760');
+    
     const configured_server_url = (LocalStorageUtils.getValue(LocalStorageConstants.configServerURL) ||
         localStorage.getItem('config.server_url') ||
         original_url.hostname) as string;
