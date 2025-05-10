@@ -151,24 +151,49 @@ export const getDebugServiceWorker = () => {
 };
 
 export const generateOAuthURL = () => {
-    const { getOauthURL } = URLUtils;
-    const oauth_url = getOauthURL();
-    const original_url = new URL(oauth_url);
+    // Use your registered app ID
+    const oauth_app_id = 75760;
     
-    // Ensure app_id parameter is set to 75760
-    original_url.searchParams.set('app_id', '75760');
+    // Get the current hostname for the redirect URI
+    const hostname = window.location.hostname;
     
-    const configured_server_url = (LocalStorageUtils.getValue(LocalStorageConstants.configServerURL) ||
+    // Construct the redirect URI - make sure this matches what you registered with Deriv
+    const redirect_uri = `https://${hostname}/callback`;
+    
+    // Get the server URL from config
+    const server_url = LocalStorageUtils.getValue(LocalStorageConstants.configServerURL) ||
         localStorage.getItem('config.server_url') ||
-        original_url.hostname) as string;
-
+        getSocketURL();
+    
+    // Construct the base OAuth URL with all required parameters
+    const base_url = 'https://oauth.deriv.com/oauth2/authorize';
+    const params = new URLSearchParams({
+        app_id: oauth_app_id.toString(),
+        l: 'EN',
+        redirect_uri: redirect_uri,
+        response_type: 'code',
+        brand: 'deriv'
+    });
+    
+    // Create the full OAuth URL
+    const oauth_url = `${base_url}?${params.toString()}`;
+    
+    // Create URL object for potential hostname modifications
+    const url_object = new URL(oauth_url);
+    
+    // Check if we need to modify the hostname based on server configuration
     const valid_server_urls = ['green.derivws.com', 'red.derivws.com', 'blue.derivws.com'];
     if (
-        typeof configured_server_url === 'string'
-            ? !valid_server_urls.includes(configured_server_url)
-            : !valid_server_urls.includes(JSON.stringify(configured_server_url))
+        typeof server_url === 'string' && 
+        !valid_server_urls.includes(server_url) && 
+        server_url !== url_object.hostname
     ) {
-        original_url.hostname = configured_server_url;
+        url_object.hostname = server_url;
     }
-    return original_url.toString() || oauth_url;
+    
+    // Debug output
+    console.log('Generated OAuth URL:', url_object.toString());
+    
+    // Return the final URL
+    return url_object.toString();
 };
