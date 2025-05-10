@@ -33,18 +33,33 @@ export const loginUrl = ({ language }: TLoginUrl) => {
     const marketing_queries = `${signup_device ? `&signup_device=${signup_device}` : ''}${
         date_first_contact ? `&date_first_contact=${date_first_contact}` : ''
     }`;
+    
+    // Use your app ID directly for the OAuth URL
     const getOAuthUrl = () => {
+        // Use 75760 as the app ID
         return `https://oauth.${
             deriv_urls.DERIV_HOST_NAME
-        }/oauth2/authorize?app_id=${getAppId()}&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}`;
+        }/oauth2/authorize?app_id=75760&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}`;
     };
 
+    // For QA environments
     if (server_url && /qa/.test(server_url)) {
-        return `https://${server_url}/oauth2/authorize?app_id=${getAppId()}&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}`;
+        // Use 75760 as the app ID for QA as well
+        return `https://${server_url}/oauth2/authorize?app_id=75760&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}`;
     }
 
+    // For production domains
+    if (window.location.hostname === 'frankfxdbot.pages.dev') {
+        // Use 75760 for your deployed site
+        return `https://oauth.${
+            deriv_urls.DERIV_HOST_NAME
+        }/oauth2/authorize?app_id=75760&l=${language}${marketing_queries}&brand=${website_name.toLowerCase()}`;
+    }
+    
+    // For other domains, use the dynamic approach
     if (getAppId() === domain_app_ids[window.location.hostname as keyof typeof domain_app_ids]) {
         return getOAuthUrl();
     }
+    
     return urlForCurrentDomain(getOAuthUrl());
 };
