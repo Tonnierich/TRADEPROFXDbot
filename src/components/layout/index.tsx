@@ -3,7 +3,10 @@ import clsx from 'clsx';
 import Cookies from 'js-cookie';
 import { Outlet } from 'react-router-dom';
 import { api_base } from '@/external/bot-skeleton';
-import { requestOidcAuthentication } from '@deriv-com/auth-client';
+// Remove this import
+// import { requestOidcAuthentication } from '@deriv-com/auth-client';
+// Add this import instead
+import { generateOAuthURL } from '@/components/shared'; // Adjust path if needed
 import { useDevice } from '@deriv-com/ui';
 import { crypto_currencies_display_order, fiat_currencies_display_order } from '../shared';
 import Footer from './footer';
@@ -132,23 +135,16 @@ const Layout = () => {
             if (query_param_currency) {
                 sessionStorage.setItem('query_param_currency', query_param_currency);
             }
+            
             try {
-                requestOidcAuthentication({
-                    redirectCallbackUri: `${window.location.origin}/callback`,
-                    ...(query_param_currency
-                        ? {
-                              state: {
-                                  account: query_param_currency,
-                              },
-                          }
-                        : {}),
-                }).catch(err => {
-                    // eslint-disable-next-line no-console
-                    console.error(err);
-                });
+                // Log the OAuth URL for debugging
+                console.log('Redirecting to OAuth URL:', generateOAuthURL());
+                
+                // Redirect to the custom OAuth URL
+                window.location.replace(generateOAuthURL());
             } catch (err) {
                 // eslint-disable-next-line no-console
-                console.error(err);
+                console.error('Error redirecting to OAuth URL:', err);
             }
         }
     }, [isLoggedInCookie, isClientAccountsPopulated, isEndpointPage, isCallbackPage, clientHasCurrency]);
