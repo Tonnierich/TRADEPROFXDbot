@@ -147,6 +147,15 @@
                         }
                     }
                 }
+                
+                /* Add this to ensure Analysis and Strategies tabs don't take up the full width */
+                & > div {
+                    width: calc(100% - 320px); /* Adjust based on your right panel width */
+                    
+                    @include mobile-or-tablet-screen {
+                        width: 100%; /* On mobile, let content take full width */
+                    }
+                }
             }
 
             &__item {
@@ -212,6 +221,18 @@
             display: none;
         }
     }
+}
+
+/* Add this to ensure Analysis and Strategies tabs don't take up the full width */
+.dc-tabs__content > div {
+    width: calc(100% - 320px); /* Adjust based on your right panel width */
+}
+
+/* Ensure the Analysis and Strategies components respect their container width */
+.analysis-tools,
+.strategies {
+    width: 100%;
+    height: 100%;
 }
 
 .animation__wrapper {
@@ -751,4 +772,63 @@
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+/* Fix for the contract status overlay */
+.contract-status-overlay {
+    z-index: 25 !important; /* Higher than run-strategy-wrapper */
+}
+
+/* Fix for the run panel */
+.run-panel {
+    z-index: 25 !important; /* Higher than run-strategy-wrapper */
+}
+
+/* Ensure bot builder content is visible */
+.bot-builder {
+    z-index: 5 !important; /* Higher than default but lower than run panel */
+}
+
+/* Ensure chart content is visible */
+.chart-container, 
+.smartcharts {
+    z-index: 5 !important; /* Higher than default but lower than run panel */
+}
+
+/* Add responsive adjustments for mobile */
+@include mobile-or-tablet-screen {
+    .main .dc-tabs__content > div {
+        width: 100%; /* On mobile, let content take full width */
+    }
+}
+
+/* Add these styles at the end of the file to fix Analysis and Strategies tabs */
+/* These styles won't affect other tabs */
+
+/* Ensure the Analysis and Strategies components respect their container width */
+.analysis-tools,
+.strategies {
+    width: 100%;
+    height: 100%;
+}
+
+/* Fix for the Analysis tab to ensure it's visible when contracts are running */
+.analysis-tools__centered-container {
+    position: relative;
+    z-index: 5;
+}
+
+.analysis-tools__iframe-wrapper {
+    position: relative;
+    z-index: 5;
+}
+
+/* Fix for the contract status overlay to ensure it's always on top */
+.contract-status {
+    z-index: 30;
+}
+
+/* Fix for the run panel to ensure it's always on top */
+.run-panel {
+    z-index: 30;
 }
