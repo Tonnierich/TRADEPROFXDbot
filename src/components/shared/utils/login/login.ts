@@ -49,7 +49,7 @@ export const loginUrl = ({ language }: TLoginUrl) => {
     }
 
     // For production domains
-    if (window.location.hostname === 'frankfxdbot.pages.dev') {
+    if (window.location.hostname === 'tradeprofxdbot.pages.dev') {
         // Use 75760 for your deployed site
         return `https://oauth.${
             deriv_urls.DERIV_HOST_NAME

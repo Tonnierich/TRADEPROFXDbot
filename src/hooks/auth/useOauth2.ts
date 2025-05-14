@@ -60,12 +60,12 @@ export const useOauth2 = ({
         client?.setIsLoggingOut(true);
         try {
             await OAuth2Logout({
-                redirectCallbackUri: window.location.hostname === 'frankfxdbot.pages.dev' 
-                    ? 'https://frankfxdbot.pages.dev/callback' 
+                redirectCallbackUri: window.location.hostname === 'tradeprofxdbot.pages.dev' 
+                    ? 'https://tradeprofxdbot.pages.dev/callback' 
                     : `${window.location.origin}/callback`,
                 WSLogoutAndRedirect: handleLogout ?? (() => Promise.resolve()),
-                postLogoutRedirectUri: window.location.hostname === 'frankfxdbot.pages.dev'
-                    ? 'https://frankfxdbot.pages.dev'
+                postLogoutRedirectUri: window.location.hostname === 'tradeprofxdbot.pages.dev'
+                    ? 'https://tradeprofxdbot.pages.dev'
                     : window.location.origin,
             }).catch(err => {
                 // eslint-disable-next-line no-console
@@ -80,11 +80,11 @@ export const useOauth2 = ({
     const retriggerOAuth2Login = async () => {
         try {
             await requestOidcAuthentication({
-                redirectCallbackUri: window.location.hostname === 'frankfxdbot.pages.dev' 
-                    ? 'https://frankfxdbot.pages.dev/callback' 
+                redirectCallbackUri: window.location.hostname === 'tradeprofxdbot.pages.dev' 
+                    ? 'https://tradeprofxdbot.pages.dev/callback' 
                     : `${window.location.origin}/callback`,
-                postLogoutRedirectUri: window.location.hostname === 'frankfxdbot.pages.dev'
-                    ? 'https://frankfxdbot.pages.dev'
+                postLogoutRedirectUri: window.location.hostname === 'tradeprofxdbot.pages.dev'
+                    ? 'https://tradeprofxdbot.pages.dev'
                     : window.location.origin,
                 // Note: clientId parameter doesn't seem to be working with the auth-client library
                 clientId: '75760',

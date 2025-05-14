@@ -24,7 +24,7 @@ export const domain_app_ids = {
     'dbot.deriv.be': APP_IDS.PRODUCTION_BE,
     'dbot.deriv.me': APP_IDS.PRODUCTION_ME,
     // Add your domain here
-    'frankfxdbot.pages.dev': APP_IDS.LOCALHOST,
+    'tradeprofxdbot.pages.dev': APP_IDS.LOCALHOST,
 };
 
 export const getCurrentProductionDomain = () =>
@@ -40,7 +40,7 @@ export const isTestLink = () => {
     return (
         window.location.origin?.includes('.binary.sx') ||
         window.location.origin?.includes('bot-65f.pages.dev') ||
-        window.location.origin?.includes('frankfxdbot.pages.dev') || // Add your domain here
+        window.location.origin?.includes('tradeprofxdbot.pages.dev') || // Add your domain here
         isLocal()
     );
 };
@@ -86,8 +86,8 @@ export const getAppId = () => {
     const config_app_id = window.localStorage.getItem('config.app_id');
     const current_domain = getCurrentProductionDomain() ?? '';
 
-    // Always use 75760 for frankfxdbot.pages.dev
-    if (window.location.hostname === 'frankfxdbot.pages.dev') {
+    // Always use 75760 for tradeprofxdbot.pages.dev
+    if (window.location.hostname === 'tradeprofxdbot.pages.dev') {
         return APP_IDS.LOCALHOST; // 75760
     }
 
