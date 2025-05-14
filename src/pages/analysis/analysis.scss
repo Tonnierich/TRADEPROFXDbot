@@ -49,6 +49,8 @@
         height: calc(100% - 3.5rem);
         padding: 1rem;
         overflow-y: auto;
+        position: relative;
+        z-index: 5;
     }
 
     &__iframe-wrapper {
@@ -62,6 +64,7 @@
         background-color: var(--general-section-1);
         position: relative;
         margin-bottom: 2rem;
+        z-index: 5;
     }
 
     &__iframe {
