@@ -5,8 +5,7 @@
     width: 100%;
     background-color: var(--general-main-1);
     overflow: hidden;
-    position: relative; /* Ensure proper positioning */
-    z-index: 1; /* Add a base z-index */
+    position: relative;
 
     &__compact-header {
         display: flex;
@@ -16,17 +15,7 @@
         background-color: var(--general-section-1);
         border-bottom: 1px solid var(--general-section-3);
         width: 100%;
-        z-index: 10; /* Ensure header stays on top */
-    }
-
-    &__header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.8rem 1.6rem;
-        background-color: var(--general-section-1);
-        border-bottom: 1px solid var(--general-section-3);
-        width: 100%;
+        z-index: 10;
     }
 
     &__title {
@@ -52,15 +41,6 @@
         }
     }
 
-    &__content {
-        flex: 1;
-        width: 100%;
-        height: calc(100% - 4.8rem);
-        display: flex;
-        flex-direction: column;
-        background-color: var(--general-main-1);
-    }
-
     &__centered-container {
         display: flex;
         justify-content: center;
@@ -69,16 +49,6 @@
         height: calc(100% - 3.5rem);
         padding: 1rem;
         overflow-y: auto;
-        position: relative; /* Add this */
-        z-index: 5; /* Add this to ensure content is above any overlays */
-    }
-
-    &__iframe-container {
-        flex: 1;
-        width: 100%;
-        height: 100%;
-        position: relative;
-        display: block;
     }
 
     &__iframe-wrapper {
@@ -92,7 +62,6 @@
         background-color: var(--general-section-1);
         position: relative;
         margin-bottom: 2rem;
-        z-index: 5; /* Add this to ensure iframe is above any overlays */
     }
 
     &__iframe {
@@ -104,7 +73,6 @@
         border: none;
         transform: scale(0.95);
         transform-origin: top center;
-        display: block;
     }
 
     &__card {
@@ -174,18 +142,6 @@
 // Media query for smaller screens
 @media (max-width: 768px) {
     .analysis-tools {
-        &__header {
-            padding: 0.6rem 1.2rem;
-        }
-        
-        &__content {
-            height: calc(100% - 4.2rem);
-        }
-        
-        &__card {
-            margin: 1.2rem;
-        }
-
         &__iframe-wrapper {
             max-width: 100%;
             height: 450px;
