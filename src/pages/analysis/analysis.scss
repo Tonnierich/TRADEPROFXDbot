@@ -5,7 +5,8 @@
     width: 100%;
     background-color: var(--general-main-1);
     overflow: hidden;
-    position: relative; /* Add this to ensure proper positioning */
+    position: relative; /* Ensure proper positioning */
+    z-index: 1; /* Add a base z-index */
 
     &__compact-header {
         display: flex;
@@ -16,6 +17,16 @@
         border-bottom: 1px solid var(--general-section-3);
         width: 100%;
         z-index: 10; /* Ensure header stays on top */
+    }
+
+    &__header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.8rem 1.6rem;
+        background-color: var(--general-section-1);
+        border-bottom: 1px solid var(--general-section-3);
+        width: 100%;
     }
 
     &__title {
@@ -41,27 +52,47 @@
         }
     }
 
+    &__content {
+        flex: 1;
+        width: 100%;
+        height: calc(100% - 4.8rem);
+        display: flex;
+        flex-direction: column;
+        background-color: var(--general-main-1);
+    }
+
     &__centered-container {
         display: flex;
         justify-content: center;
-        align-items: flex-start; /* Changed from center to flex-start */
+        align-items: flex-start;
         width: 100%;
         height: calc(100% - 3.5rem);
         padding: 1rem;
-        overflow-y: auto; /* Add scrolling if needed */
+        overflow-y: auto;
+        position: relative; /* Add this */
+        z-index: 5; /* Add this to ensure content is above any overlays */
+    }
+
+    &__iframe-container {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        position: relative;
+        display: block;
     }
 
     &__iframe-wrapper {
         width: 100%;
-        max-width: 800px; /* Limit maximum width */
-        height: 500px; /* Fixed height to ensure it doesn't cover other elements */
+        max-width: 800px;
+        height: 500px;
         border: 1px solid var(--general-section-3);
         border-radius: 0.4rem;
         overflow: hidden;
         box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
         background-color: var(--general-section-1);
         position: relative;
-        margin-bottom: 2rem; /* Add space below the iframe */
+        margin-bottom: 2rem;
+        z-index: 5; /* Add this to ensure iframe is above any overlays */
     }
 
     &__iframe {
@@ -71,8 +102,9 @@
         width: 100%;
         height: 100%;
         border: none;
-        transform: scale(0.95); /* Slightly scale down to ensure content fits */
+        transform: scale(0.95);
         transform-origin: top center;
+        display: block;
     }
 
     &__card {
@@ -142,6 +174,18 @@
 // Media query for smaller screens
 @media (max-width: 768px) {
     .analysis-tools {
+        &__header {
+            padding: 0.6rem 1.2rem;
+        }
+        
+        &__content {
+            height: calc(100% - 4.2rem);
+        }
+        
+        &__card {
+            margin: 1.2rem;
+        }
+
         &__iframe-wrapper {
             max-width: 100%;
             height: 450px;
