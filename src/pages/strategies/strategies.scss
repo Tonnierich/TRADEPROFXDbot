@@ -192,13 +192,14 @@
     &-container {
       display: flex;
       flex-direction: column;
-      position: absolute;
+      position: fixed; /* Change from absolute to fixed */
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
       margin: 0;
-      height: 100%;
+      height: 100vh; /* Use viewport height instead of percentage */
+      width: 100vw; /* Use viewport width */
       z-index: 10;
       background-color: var(--general-main-1);
     }
@@ -211,6 +212,7 @@
       background-color: var(--general-section-1);
       border-bottom: 1px solid var(--general-section-3);
       z-index: 11;
+      flex-shrink: 0; /* Prevent header from shrinking */
     }
     
     &-title {
@@ -239,18 +241,18 @@
     &-content {
       flex: 1;
       position: relative;
-      height: calc(100vh - 9rem);
+      display: flex; /* Add flex display */
+      flex-direction: column; /* Stack children vertically */
+      height: calc(100vh - 6rem); /* Adjust height calculation */
       overflow: hidden;
-      
-      @include mobile-or-tablet-screen {
-        height: calc(100vh - 6rem);
-      }
     }
     
     &-iframe {
       width: 100%;
-      height: 100%;
+      height: 100%; /* Make iframe take full height of parent */
       border: none;
+      flex: 1; /* Allow iframe to grow and fill available space */
+      min-height: 0; /* Fix for Firefox flex issues */
     }
   }
   
