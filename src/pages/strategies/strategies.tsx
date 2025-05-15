@@ -22,7 +22,8 @@ const Strategies = observer(() => {
       const calculateHeight = () => {
         const headerHeight = document.querySelector(".strategies__tool-header")?.offsetHeight || 0
         const windowHeight = window.innerHeight
-        const newHeight = windowHeight - headerHeight
+        // Calculate 80% of the available height (reducing by 20%)
+        const newHeight = (windowHeight - headerHeight) * 0.8
         setIframeHeight(`${newHeight}px`)
       }
 
@@ -48,21 +49,23 @@ const Strategies = observer(() => {
               <Localize i18n_default_text="Back to Strategies" />
             </button>
           </div>
-          <iframe
-            src="https://v0-tradeprofxaccumulator.vercel.app/"
-            className="strategies__tool-iframe"
-            title="TradeProfX Quantum Bot"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            style={{
-              display: "block",
-              width: "100%",
-              height: iframeHeight,
-              border: "none",
-              overflow: "hidden",
-            }}
-          ></iframe>
+          <div className="strategies__tool-iframe-wrapper">
+            <iframe
+              src="https://v0-tradeprofxaccumulator.vercel.app/"
+              className="strategies__tool-iframe"
+              title="TradeProfX Quantum Bot"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              style={{
+                display: "block",
+                width: "100%",
+                height: iframeHeight,
+                border: "none",
+                overflow: "hidden",
+              }}
+            ></iframe>
+          </div>
         </div>
       ) : (
         <>
