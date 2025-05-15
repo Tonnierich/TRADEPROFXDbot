@@ -20,10 +20,9 @@ const Strategies = observer(() => {
   useEffect(() => {
     if (showTradeProfXTool && containerRef.current) {
       const calculateHeight = () => {
-        const headerHeight = document.querySelector(".strategies__tool-header")?.offsetHeight || 0
         const windowHeight = window.innerHeight
-        // Calculate 80% of the available height (reducing by 20%)
-        const newHeight = (windowHeight - headerHeight) * 0.8
+        // Use 80% of the height, but position it from the top to show Deriv balances
+        const newHeight = windowHeight * 0.8
         setIframeHeight(`${newHeight}px`)
       }
 
@@ -41,15 +40,15 @@ const Strategies = observer(() => {
     <div className="strategies">
       {showTradeProfXTool ? (
         <div className="strategies__tool-container" ref={containerRef}>
-          <div className="strategies__tool-header">
-            <h2 className="strategies__tool-title">
-              <Localize i18n_default_text="ALL IN ONE TRADEPROFX TOOL" />
-            </h2>
-            <button className="strategies__tool-back" onClick={toggleTradeProfXTool}>
-              <Localize i18n_default_text="Back to Strategies" />
-            </button>
-          </div>
           <div className="strategies__tool-iframe-wrapper">
+            <div className="strategies__tool-header">
+              <h2 className="strategies__tool-title">
+                <Localize i18n_default_text="ALL IN ONE TRADEPROFX TOOL" />
+              </h2>
+              <button className="strategies__tool-back" onClick={toggleTradeProfXTool}>
+                <Localize i18n_default_text="Back to Strategies" />
+              </button>
+            </div>
             <iframe
               src="https://v0-tradeprofxaccumulator.vercel.app/"
               className="strategies__tool-iframe"
