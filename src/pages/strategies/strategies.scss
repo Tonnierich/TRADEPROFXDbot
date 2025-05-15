@@ -191,16 +191,27 @@
   &__tool {
     &-container {
       position: fixed;
-      top: 0;
+      top: 20%; /* Position from the top to show Deriv balances */
       left: 0;
       right: 0;
       bottom: 0;
       width: 100vw;
-      height: 100vh;
+      height: 80vh; /* Take only 80% of viewport height */
       margin: 0;
       padding: 0;
       z-index: 999;
-      background-color: rgba(0, 0, 0, 0.9);
+      background-color: transparent;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    &-iframe-wrapper {
+      background-color: #000000;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+      height: 100%;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -240,22 +251,11 @@
       }
     }
     
-    &-iframe-wrapper {
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      padding-top: 2rem;
-      overflow: auto;
-      flex: 1;
-    }
-    
     &-iframe {
       border: none;
       width: 100%;
-      max-width: 100%;
-      height: calc(80vh - 70px); /* Fallback if JS calculation fails */
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      flex: 1;
+      min-height: 0; /* Fix for Firefox flex issues */
     }
   }
 }
