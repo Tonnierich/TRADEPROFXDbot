@@ -3,21 +3,43 @@
 import { observer } from "mobx-react-lite"
 import { Localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import "./strategies.scss"
 
 const Strategies = observer(() => {
   const { isDesktop } = useDevice()
   const [showTradeProfXTool, setShowTradeProfXTool] = useState(false)
+  const [iframeHeight, setIframeHeight] = useState("100%")
+  const containerRef = useRef(null)
 
   const toggleTradeProfXTool = () => {
     setShowTradeProfXTool(!showTradeProfXTool)
   }
 
+  // Calculate and set the iframe height when the tool is shown
+  useEffect(() => {
+    if (showTradeProfXTool && containerRef.current) {
+      const calculateHeight = () => {
+        const headerHeight = document.querySelector(".strategies__tool-header")?.offsetHeight || 0
+        const windowHeight = window.innerHeight
+        const newHeight = windowHeight - headerHeight
+        setIframeHeight(`${newHeight}px`)
+      }
+
+      // Calculate initially and on resize
+      calculateHeight()
+      window.addEventListener("resize", calculateHeight)
+
+      return () => {
+        window.removeEventListener("resize", calculateHeight)
+      }
+    }
+  }, [showTradeProfXTool])
+
   return (
     <div className="strategies">
       {showTradeProfXTool ? (
-        <div className="strategies__tool-container">
+        <div className="strategies__tool-container" ref={containerRef}>
           <div className="strategies__tool-header">
             <h2 className="strategies__tool-title">
               <Localize i18n_default_text="ALL IN ONE TRADEPROFX TOOL" />
@@ -26,17 +48,21 @@ const Strategies = observer(() => {
               <Localize i18n_default_text="Back to Strategies" />
             </button>
           </div>
-          <div className="strategies__tool-content">
-            <iframe
-              src="https://v0-tradeprofxaccumulator.vercel.app/"
-              className="strategies__tool-iframe"
-              title="TradeProfX Quantum Bot"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{ display: "block", width: "100%", height: "100%" }}
-            ></iframe>
-          </div>
+          <iframe
+            src="https://v0-tradeprofxaccumulator.vercel.app/"
+            className="strategies__tool-iframe"
+            title="TradeProfX Quantum Bot"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{
+              display: "block",
+              width: "100%",
+              height: iframeHeight,
+              border: "none",
+              overflow: "hidden",
+            }}
+          ></iframe>
         </div>
       ) : (
         <>
