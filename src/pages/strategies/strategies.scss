@@ -190,18 +190,20 @@
   
   &__tool {
     &-container {
-      display: flex;
-      flex-direction: column;
-      position: fixed; /* Change from absolute to fixed */
+      position: fixed;
       top: 0;
       left: 0;
       right: 0;
       bottom: 0;
+      width: 100vw;
+      height: 100vh;
       margin: 0;
-      height: 100vh; /* Use viewport height instead of percentage */
-      width: 100vw; /* Use viewport width */
-      z-index: 10;
-      background-color: var(--general-main-1);
+      padding: 0;
+      z-index: 999;
+      background-color: #000000;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
     
     &-header {
@@ -209,24 +211,24 @@
       justify-content: space-between;
       align-items: center;
       padding: 1.6rem 2.4rem;
-      background-color: var(--general-section-1);
-      border-bottom: 1px solid var(--general-section-3);
-      z-index: 11;
-      flex-shrink: 0; /* Prevent header from shrinking */
+      background-color: #000000;
+      border-bottom: 1px solid #333333;
+      z-index: 1000;
+      flex-shrink: 0;
     }
     
     &-title {
       font-size: 1.8rem;
       font-weight: bold;
-      color: var(--text-prominent);
+      color: white;
       margin: 0;
     }
     
     &-back {
       padding: 0.8rem 1.6rem;
-      background-color: var(--general-section-2);
-      color: var(--text-prominent);
-      border: 1px solid var(--general-section-3);
+      background-color: #333333;
+      color: white;
+      border: none;
       border-radius: 0.4rem;
       font-weight: bold;
       font-size: 1.4rem;
@@ -234,63 +236,14 @@
       transition: background-color 0.3s ease;
       
       &:hover {
-        background-color: var(--general-hover);
+        background-color: #444444;
       }
     }
     
-    &-content {
-      flex: 1;
-      position: relative;
-      display: flex; /* Add flex display */
-      flex-direction: column; /* Stack children vertically */
-      height: calc(100vh - 6rem); /* Adjust height calculation */
-      overflow: hidden;
-    }
-    
     &-iframe {
-      width: 100%;
-      height: 100%; /* Make iframe take full height of parent */
       border: none;
-      flex: 1; /* Allow iframe to grow and fill available space */
-      min-height: 0; /* Fix for Firefox flex issues */
-    }
-  }
-  
-  &__loading, &__error {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 200px;
-    color: var(--text-general);
-    font-size: 1.6rem;
-  }
-  
-  &__notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 1.6rem;
-    border-radius: 0.4rem;
-    color: white;
-    font-weight: bold;
-    z-index: 1000;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    transition: opacity 0.5s ease;
-    
-    &--loading {
-      background-color: var(--status-info);
-    }
-    
-    &--success {
-      background-color: var(--status-success);
-    }
-    
-    &--error {
-      background-color: var(--status-danger);
-    }
-    
-    &--fade-out {
-      opacity: 0;
+      width: 100%;
+      height: calc(100vh - 70px); /* Fallback if JS calculation fails */
     }
   }
 }
