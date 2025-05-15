@@ -99,4 +99,3 @@ const Strategies = observer(() => {
 })
 
 export default Strategies
-
