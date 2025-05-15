@@ -200,7 +200,7 @@
       margin: 0;
       padding: 0;
       z-index: 999;
-      background-color: #000000;
+      background-color: rgba(0, 0, 0, 0.9);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -240,10 +240,22 @@
       }
     }
     
+    &-iframe-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 2rem;
+      overflow: auto;
+      flex: 1;
+    }
+    
     &-iframe {
       border: none;
       width: 100%;
-      height: calc(100vh - 70px); /* Fallback if JS calculation fails */
+      max-width: 100%;
+      height: calc(80vh - 70px); /* Fallback if JS calculation fails */
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
   }
 }
