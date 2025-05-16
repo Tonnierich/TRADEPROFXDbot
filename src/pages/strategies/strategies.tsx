@@ -10,10 +10,16 @@ const Strategies = observer(() => {
   const { isDesktop } = useDevice()
   const [showTradeProfXTool, setShowTradeProfXTool] = useState(false)
   const [iframeHeight, setIframeHeight] = useState("100%")
+  const [activeToolUrl, setActiveToolUrl] = useState("https://v0-tradeprofxaccumulator.vercel.app/")
   const containerRef = useRef(null)
 
-  const toggleTradeProfXTool = () => {
-    setShowTradeProfXTool(!showTradeProfXTool)
+  const toggleTradeProfXTool = (url) => {
+    if (url) {
+      setActiveToolUrl(url)
+      setShowTradeProfXTool(true)
+    } else {
+      setShowTradeProfXTool(!showTradeProfXTool)
+    }
   }
 
   // Calculate and set the iframe height when the tool is shown
@@ -43,16 +49,36 @@ const Strategies = observer(() => {
           <div className="strategies__tool-iframe-wrapper">
             <div className="strategies__tool-header">
               <h2 className="strategies__tool-title">
-                <Localize i18n_default_text="ALL IN ONE TRADEPROFX TOOL" />
+                <Localize
+                  i18n_default_text={
+                    activeToolUrl.includes("tradeprofxaccumulator")
+                      ? "ALL IN ONE TRADEPROFX TOOL"
+                      : "DERIV ANALYSIS TOOL"
+                  }
+                />
               </h2>
-              <button className="strategies__tool-back" onClick={toggleTradeProfXTool}>
-                <Localize i18n_default_text="Back to Strategies" />
-              </button>
+              <div className="strategies__tool-actions">
+                <button
+                  className={`strategies__tool-switch ${activeToolUrl.includes("tradeprofxaccumulator") ? "strategies__tool-switch--active" : ""}`}
+                  onClick={() => setActiveToolUrl("https://v0-tradeprofxaccumulator.vercel.app/")}
+                >
+                  <Localize i18n_default_text="TradeProfX" />
+                </button>
+                <button
+                  className={`strategies__tool-switch ${activeToolUrl.includes("derivanalysistool") ? "strategies__tool-switch--active" : ""}`}
+                  onClick={() => setActiveToolUrl("https://v0-derivanalysistool.vercel.app/")}
+                >
+                  <Localize i18n_default_text="Analysis Tool" />
+                </button>
+                <button className="strategies__tool-back" onClick={() => toggleTradeProfXTool()}>
+                  <Localize i18n_default_text="Back to Strategies" />
+                </button>
+              </div>
             </div>
             <iframe
-              src="https://v0-tradeprofxaccumulator.vercel.app/"
+              src={activeToolUrl}
               className="strategies__tool-iframe"
-              title="TradeProfX Quantum Bot"
+              title="Trading Tool"
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
@@ -113,8 +139,51 @@ const Strategies = observer(() => {
                         </span>
                       </div>
                     </div>
-                    <button className="strategies__button strategies__button--primary" onClick={toggleTradeProfXTool}>
+                    <button
+                      className="strategies__button strategies__button--primary"
+                      onClick={() => toggleTradeProfXTool("https://v0-tradeprofxaccumulator.vercel.app/")}
+                    >
                       <Localize i18n_default_text="Open TradeProfX Quantum Bot" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="strategies__card strategies__card--featured">
+                  <div className="strategies__card-header">
+                    <h4 className="strategies__card-title">
+                      <Localize i18n_default_text="DERIV ANALYSIS TOOL" />
+                    </h4>
+                    <span className="strategies__card-tag strategies__card-tag--advanced">
+                      <Localize i18n_default_text="Advanced" />
+                    </span>
+                  </div>
+                  <div className="strategies__card-content">
+                    <p>
+                      <Localize i18n_default_text="Comprehensive market analysis tool with advanced charting, indicators, and real-time data for Deriv markets." />
+                    </p>
+                    <div className="strategies__card-stats">
+                      <div className="strategies__card-stat">
+                        <span className="strategies__card-stat-label">
+                          <Localize i18n_default_text="Features" />
+                        </span>
+                        <span className="strategies__card-stat-value">
+                          <Localize i18n_default_text="Technical Analysis, Market Insights" />
+                        </span>
+                      </div>
+                      <div className="strategies__card-stat">
+                        <span className="strategies__card-stat-label">
+                          <Localize i18n_default_text="Compatibility" />
+                        </span>
+                        <span className="strategies__card-stat-value">
+                          <Localize i18n_default_text="All Deriv Markets" />
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="strategies__button strategies__button--primary"
+                      onClick={() => toggleTradeProfXTool("https://v0-derivanalysistool.vercel.app/")}
+                    >
+                      <Localize i18n_default_text="Open Deriv Analysis Tool" />
                     </button>
                   </div>
                 </div>
@@ -128,3 +197,4 @@ const Strategies = observer(() => {
 })
 
 export default Strategies
+
