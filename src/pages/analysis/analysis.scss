@@ -10,6 +10,12 @@
     overflow: hidden;
     position: relative;
 
+    // When the tool is shown, make room for the run panel
+    &--with-panel {
+        width: calc(100% - 366px) !important;
+        margin-right: 366px !important;
+    }
+
     &__compact-header {
         display: flex;
         justify-content: space-between;
@@ -52,15 +58,11 @@
     }
 
     &__iframe-container {
-        width: calc(100% - 366px); /* Leave space for the run panel (366px) */
+        width: 100%;
         height: 100%;
         padding: 1rem;
         overflow: hidden;
         position: relative;
-        
-        @include mobile-or-tablet-screen {
-            width: 100%; /* Full width on mobile */
-        }
     }
 
     &__iframe {
@@ -135,7 +137,7 @@
             visibility: visible !important;
             opacity: 1 !important;
             pointer-events: auto !important;
-            z-index: 10;
+            z-index: 998 !important;
             position: fixed !important;
             top: 104px !important; /* Adjust based on your header height */
             right: 0 !important;
@@ -153,7 +155,7 @@
             left: -24px !important;
             top: 50% !important;
             transform: translateY(-50%) !important;
-            z-index: 20 !important;
+            z-index: 999 !important;
         }
         
         /* Make sure the Run button is visible and clickable */
