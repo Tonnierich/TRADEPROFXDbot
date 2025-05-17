@@ -7,122 +7,90 @@ import { useStore } from "@/hooks/useStore"
 import "./analysis.scss"
 
 const Analysis = observer(() => {
-  const { isDesktop } = useDevice()
+  const { isDesktop, isMobile } = useDevice()
   const { run_panel, dashboard } = useStore()
   const [showTool, setShowTool] = useState(true)
   const containerRef = useRef(null)
 
   // Initialize the run panel when the component mounts
   useEffect(() => {
-    if (isDesktop) {
-      // Important: Set the active tab to CHART to ensure the run panel is initialized correctly
-      // This matches what's done in main.tsx for the Analysis tab
-      dashboard.setActiveTab("CHART")
+    // Important: Set the active tab to CHART to ensure the run panel is initialized correctly
+    dashboard.setActiveTab("CHART")
 
-      // Force the run panel to be visible
-      if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
-        run_panel.toggleDrawer(true)
-      }
+    // Force the run panel to be visible
+    if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
+      run_panel.toggleDrawer(true)
+    }
 
-      // Add a class to the body to help with styling
-      document.body.classList.add("dbot-analysis-active")
+    // Add a class to the body to help with styling
+    document.body.classList.add("dbot-analysis-active")
+    if (isMobile) {
+      document.body.classList.add("dbot-analysis-mobile")
+    }
 
-      // Check if the run panel exists in the DOM
-      const checkForRunPanel = () => {
-        const runPanelContainer = document.querySelector(".run-panel__container")
-        
-        if (!runPanelContainer) {
-          console.log("Run panel not found, attempting to clone from another tab...")
-          
-          // Try to find the run panel in the DOM (it might be hidden but present)
-          const existingRunPanel = document.querySelector(".run-panel")
-          
-          if (existingRunPanel) {
-            console.log("Found existing run panel, making it visible")
-            
-            // Clone it to ensure we have a clean copy
-            const clonedRunPanel = existingRunPanel.cloneNode(true)
-            
-            // Make sure it's visible and positioned correctly
-            clonedRunPanel.classList.add("run-panel--active")
-            
-            // Append it to the body
-            document.body.appendChild(clonedRunPanel)
-            
-            // Now style it
-            styleRunPanelElements()
-          } else {
-            console.log("No run panel found in DOM")
-          }
-        } else {
-          console.log("Run panel already exists, styling it")
-          styleRunPanelElements()
-        }
-      }
-
-      // Function to style run panel elements
-      const styleRunPanelElements = () => {
-        // Style the run panel container
-        const runPanelContainer = document.querySelector(".run-panel__container")
-        if (runPanelContainer) {
+    // Function to ensure run panel elements are visible and properly styled
+    const ensureRunPanelVisibility = () => {
+      // For the run panel container
+      const runPanelContainer = document.querySelector(".run-panel__container")
+      if (runPanelContainer) {
+        if (isDesktop) {
           runPanelContainer.setAttribute(
             "style",
             "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; top: 104px !important; right: 0 !important; width: 366px !important; height: calc(100vh - 104px) !important;"
           )
-        }
-
-        // Style the drawer
-        const drawer = document.querySelector(".dc-drawer")
-        if (drawer) {
-          drawer.setAttribute(
+        } else {
+          // Mobile styling
+          runPanelContainer.setAttribute(
             "style",
-            "transform: none !important; visibility: visible !important; opacity: 1 !important; transition: none !important;"
+            "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important;"
           )
         }
+      }
 
-        // Style the toggle button
-        const toggle = document.querySelector(".run-panel__toggle")
-        if (toggle) {
+      // For the toggle button
+      const toggle = document.querySelector(".run-panel__toggle")
+      if (toggle) {
+        if (isDesktop) {
           toggle.setAttribute(
             "style",
             "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important;"
           )
+        } else {
+          // Mobile styling - position at the top center
+          toggle.setAttribute(
+            "style",
+            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
+          )
         }
-      }
-
-      // Check for run panel immediately and after a delay
-      checkForRunPanel()
-      setTimeout(checkForRunPanel, 1000)
-      
-      // Set up a MutationObserver to watch for changes to the DOM
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          if (mutation.type === 'childList') {
-            // Check if any run panel elements were added
-            const runPanelElements = document.querySelectorAll('.run-panel, .run-panel__container, .run-panel__toggle')
-            if (runPanelElements.length > 0) {
-              styleRunPanelElements()
-            }
-          }
-        }
-      })
-      
-      // Start observing the document body
-      observer.observe(document.body, { childList: true, subtree: true })
-
-      return () => {
-        document.body.classList.remove("dbot-analysis-active")
-        observer.disconnect()
       }
     }
-  }, [dashboard, run_panel, isDesktop])
+
+    // Run immediately and set up an interval to keep checking
+    ensureRunPanelVisibility()
+    const intervalId = setInterval(ensureRunPanelVisibility, 1000)
+
+    // Set up a MutationObserver to watch for changes to the DOM
+    const observer = new MutationObserver(() => {
+      ensureRunPanelVisibility()
+    })
+    
+    // Start observing the document body
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    return () => {
+      document.body.classList.remove("dbot-analysis-active")
+      document.body.classList.remove("dbot-analysis-mobile")
+      clearInterval(intervalId)
+      observer.disconnect()
+    }
+  }, [dashboard, run_panel, isDesktop, isMobile])
 
   const toggleTool = () => {
     setShowTool(!showTool)
   }
 
   return (
-    <div className={`analysis-tools ${showTool ? "analysis-tools--with-panel" : ""}`} ref={containerRef}>
+    <div className={`analysis-tools ${showTool ? "analysis-tools--with-panel" : ""} ${isMobile ? "analysis-tools--mobile" : ""}`} ref={containerRef}>
       <div className="analysis-tools__compact-header">
         <h2 className="analysis-tools__title">
           <Localize i18n_default_text="Analysis Tools" />
@@ -161,23 +129,6 @@ const Analysis = observer(() => {
           </div>
         </div>
       )}
-      
-      {/* Debug element to show the status of the run panel */}
-      <div 
-        style={{
-          position: 'fixed',
-          bottom: '10px',
-          left: '10px',
-          background: 'rgba(0,0,0,0.7)',
-          color: 'white',
-          padding: '5px',
-          borderRadius: '3px',
-          fontSize: '12px',
-          zIndex: 10000
-        }}
-      >
-        Run Panel Debug: {run_panel.is_drawer_open ? 'Open' : 'Closed'}
-      </div>
     </div>
   )
 })
