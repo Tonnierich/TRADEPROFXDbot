@@ -31,7 +31,6 @@ import RunPanel from "../../components/run-panel"
 import ChartModal from "../chart/chart-modal"
 import Dashboard from "../dashboard"
 import RunStrategy from "../dashboard/run-strategy"
-import AnalysisTools from "../analysis/analysis-tools"
 import Strategies from "../strategies/strategies"
 import "./main.scss"
 
@@ -83,6 +82,66 @@ const AppWrapper = observer(() => {
       window.localStorage.setItem("show_analysis_tools", "true")
       window.localStorage.setItem("show_strategies", "true")
       ;(window as any).SHOW_ALL_DBOT_TABS = true
+    }
+  }, [])
+
+  // Add effect to hide SmartTrader, Deriv Trader, and Traders Hub
+  useEffect(() => {
+    // Create a style element to inject CSS
+    const style = document.createElement("style")
+    style.innerHTML = `
+      /* Hide platform switcher and Trader's Hub elements */
+      .platform-switcher,
+      .platform-dropdown,
+      .traders-hub-link,
+      .platform-switcher__dropdown,
+      [data-testid="dt_platform_switcher"],
+      [data-testid="dt_traders_hub_link"],
+      .app-header__traders-hub,
+      .app-header__platform-switcher,
+      .platform-switcher__list,
+      .platform-switcher__list-item,
+      .platform-switcher__button,
+      a[href*="smarttrader"],
+      a[href*="trader"],
+      a[href*="traders-hub"],
+      a[href*="derivtrader"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    `
+    document.head.appendChild(style)
+
+    // Also try to remove elements directly
+    const removeElements = () => {
+      const selectors = [
+        ".platform-switcher",
+        ".traders-hub-link",
+        '[data-testid="dt_platform_switcher"]',
+        '[data-testid="dt_traders_hub_link"]',
+        ".app-header__traders-hub",
+        ".app-header__platform-switcher",
+      ]
+
+      selectors.forEach((selector) => {
+        const elements = document.querySelectorAll(selector)
+        elements.forEach((el) => {
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el)
+          }
+        })
+      })
+    }
+
+    // Run immediately and then periodically to catch dynamically added elements
+    removeElements()
+    const interval = setInterval(removeElements, 1000)
+
+    return () => {
+      document.head.removeChild(style)
+      clearInterval(interval)
     }
   }, [])
 
