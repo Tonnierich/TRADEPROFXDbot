@@ -25,6 +25,7 @@
     &--mobile {
         // Mobile-specific styles
         padding-top: 10px;
+        padding-bottom: 50vh; // Make room for the drawer at the bottom
     }
 
     &__compact-header {
@@ -66,6 +67,10 @@
         width: 100%;
         height: calc(100vh - 180px);
         position: relative;
+        
+        @include mobile-or-tablet-screen {
+            height: calc(100vh - 250px); // Adjust height for mobile to account for the drawer
+        }
     }
 
     &__iframe-container {
