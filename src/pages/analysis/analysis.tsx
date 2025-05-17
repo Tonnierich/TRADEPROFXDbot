@@ -16,20 +16,51 @@ const Analysis = observer(() => {
   // Initialize the run panel when the component mounts
   useEffect(() => {
     if (showTool && isDesktop) {
-      // Set the active tab to CHART to ensure the run panel is initialized correctly
-      // This matches what's done in main.tsx for the Analysis tab
-      dashboard.setActiveTab("CHART")
+      // Set the active tab to BOT_BUILDER to ensure the run panel is initialized correctly
+      dashboard.setActiveTab("BOT_BUILDER")
 
-      // Make sure the run panel is visible by toggling the drawer open
-      // This is the same approach used in main.tsx
-      if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
+      // Force the run panel to be visible
+      if (!run_panel.is_drawer_open) {
         run_panel.toggleDrawer(true)
       }
 
-      // Make sure the run panel wrapper is visible
-      const runPanelElement = document.querySelector(".main__run-strategy-wrapper")
-      if (runPanelElement) {
-        runPanelElement.classList.remove("hidden")
+      // Add a class to the body to help with styling
+      document.body.classList.add("dbot-analysis-active")
+
+      // Create a MutationObserver to watch for the run panel toggle
+      const observer = new MutationObserver((mutations) => {
+        // Check if the run panel toggle exists
+        const toggle = document.querySelector(".run-panel__toggle")
+        if (toggle) {
+          console.log("Found run panel toggle, applying styles")
+          // Make sure it's visible
+          toggle.setAttribute(
+            "style",
+            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 20 !important;",
+          )
+        }
+      })
+
+      // Start observing the document body for changes
+      observer.observe(document.body, { childList: true, subtree: true })
+
+      // Also try to find and style the toggle button directly after a short delay
+      setTimeout(() => {
+        const toggle = document.querySelector(".run-panel__toggle")
+        if (toggle) {
+          console.log("Found run panel toggle after delay, applying styles")
+          toggle.setAttribute(
+            "style",
+            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 20 !important;",
+          )
+        } else {
+          console.log("Run panel toggle not found after delay")
+        }
+      }, 1000)
+
+      return () => {
+        document.body.classList.remove("dbot-analysis-active")
+        observer.disconnect()
       }
     }
   }, [showTool, dashboard, run_panel, isDesktop])
@@ -83,4 +114,3 @@ const Analysis = observer(() => {
 })
 
 export default Analysis
-
