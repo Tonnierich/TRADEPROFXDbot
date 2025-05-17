@@ -14,6 +14,7 @@ const Analysis = observer(() => {
   const [isLoading, setIsLoading] = useState(true)
   const containerRef = useRef(null)
   const iframeRef = useRef(null)
+  const initializedRef = useRef(false)
 
   // Handle iframe loading
   const handleIframeLoad = () => {
@@ -23,6 +24,9 @@ const Analysis = observer(() => {
 
   // Initialize the run panel when the component mounts
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+    
     // First initialize the analysis tool without the run panel
     setIsLoading(true);
     
@@ -32,14 +36,24 @@ const Analysis = observer(() => {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
+    // Store the original active tab to restore it later if needed
+    const originalActiveTab = dashboard.active_tab;
+    console.log("Original active tab:", originalActiveTab);
+
+    // Set up an interval to keep the active tab as ANALYSIS
+    const keepAnalysisActiveInterval = setInterval(() => {
+      // Check if the active tab has changed from ANALYSIS
+      if (dashboard.active_tab !== DBOT_TABS.ANALYSIS) {
+        console.log("Tab changed from ANALYSIS to", dashboard.active_tab, "- forcing back to ANALYSIS");
+        dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
+      }
+    }, 500);
+
     // Delayed initialization of run panel to avoid performance issues
     const initRunPanel = () => {
-      // Try using BOT_BUILDER tab which we know works
-      dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER)
-
       // Force the run panel to be visible
       if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
-        run_panel.toggleDrawer(true)
+        run_panel.toggleDrawer(true);
       }
 
       // Function to ensure run panel elements are visible and properly styled
@@ -87,12 +101,27 @@ const Analysis = observer(() => {
     };
 
     // Initialize run panel after the iframe has had time to load
-    const timeoutId = setTimeout(initRunPanel, 2000);
+    const timeoutId = setTimeout(initRunPanel, 1000);
+
+    // Override the dashboard's setActiveTab method to prevent changing from ANALYSIS
+    const originalSetActiveTab = dashboard.setActiveTab;
+    dashboard.setActiveTab = function(tab) {
+      console.log("Attempt to set active tab to:", tab);
+      if (tab !== DBOT_TABS.ANALYSIS && document.body.classList.contains("dbot-analysis-active")) {
+        console.log("Preventing tab change from ANALYSIS to", tab);
+        return;
+      }
+      originalSetActiveTab.call(this, tab);
+    };
 
     return () => {
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
       clearTimeout(timeoutId);
+      clearInterval(keepAnalysisActiveInterval);
+      
+      // Restore the original setActiveTab method
+      dashboard.setActiveTab = originalSetActiveTab;
     }
   }, [dashboard, run_panel, isDesktop, isMobile])
 
