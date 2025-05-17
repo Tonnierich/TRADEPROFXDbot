@@ -69,37 +69,8 @@ const Analysis = observer(() => {
       setTimeout(styleRunPanelElements, 1000)
       setTimeout(styleRunPanelElements, 2000)
 
-      // Create a MutationObserver to watch for the run panel elements
-      const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
-          if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-            // Check if any run panel elements were added
-            const hasRunPanelElements = Array.from(mutation.addedNodes).some((node) => {
-              if (node instanceof HTMLElement) {
-                return (
-                  node.classList?.contains("run-panel__container") ||
-                  node.classList?.contains("run-panel__toggle") ||
-                  node.querySelector(".run-panel__container") ||
-                  node.querySelector(".run-panel__toggle")
-                )
-              }
-              return false
-            })
-
-            if (hasRunPanelElements) {
-              console.log("Run panel elements detected in DOM changes")
-              styleRunPanelElements()
-            }
-          }
-        }
-      })
-
-      // Start observing the document body for changes
-      observer.observe(document.body, { childList: true, subtree: true })
-
       return () => {
         document.body.classList.remove("dbot-analysis-active")
-        observer.disconnect()
       }
     }
   }, [dashboard, run_panel, isDesktop])
@@ -153,3 +124,4 @@ const Analysis = observer(() => {
 })
 
 export default Analysis
+
