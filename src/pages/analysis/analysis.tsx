@@ -1,10 +1,12 @@
-"use client"
+// In src/pages/analysis/analysis.tsx
 
+"use client"
 import { observer } from "mobx-react-lite"
 import { Localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
 import { useState, useEffect, useRef } from "react"
 import { useStore } from "@/hooks/useStore"
+import { DBOT_TABS } from "@/constants/bot-contents"
 import "./analysis.scss"
 
 const Analysis = observer(() => {
@@ -17,7 +19,7 @@ const Analysis = observer(() => {
   useEffect(() => {
     if (isDesktop) {
       // Important: Set the active tab to BOT_BUILDER to ensure the run panel is initialized correctly
-      dashboard.setActiveTab("BOT_BUILDER")
+      dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER)
 
       // Force the run panel to be visible
       if (!run_panel.is_drawer_open) {
@@ -44,10 +46,22 @@ const Analysis = observer(() => {
           console.log("Run panel container found, applying styles")
           runPanelContainer.setAttribute(
             "style",
-            "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 998 !important; position: fixed !important; top: 104px !important; right: 0 !important; width: 366px !important; height: calc(100vh - 104px) !important;",
+            "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; top: 104px !important; right: 0 !important; width: 366px !important; height: calc(100vh - 104px) !important;"
           )
         } else {
           console.log("Run panel container NOT found")
+        }
+
+        // Check for the drawer element
+        const drawer = document.querySelector(".dc-drawer")
+        if (drawer) {
+          console.log("Drawer found, applying styles")
+          drawer.setAttribute(
+            "style",
+            "transform: none !important; visibility: visible !important; opacity: 1 !important; transition: none !important;"
+          )
+        } else {
+          console.log("Drawer NOT found")
         }
 
         // Check for the run panel toggle
@@ -56,7 +70,7 @@ const Analysis = observer(() => {
           console.log("Run panel toggle found, applying styles")
           toggle.setAttribute(
             "style",
-            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 999 !important;",
+            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important;"
           )
         } else {
           console.log("Run panel toggle NOT found")
@@ -69,11 +83,20 @@ const Analysis = observer(() => {
       setTimeout(styleRunPanelElements, 1000)
       setTimeout(styleRunPanelElements, 2000)
 
+      // Set up a MutationObserver to continuously watch for the elements
+      const observer = new MutationObserver(() => {
+        styleRunPanelElements()
+      })
+      
+      // Start observing the document body for changes
+      observer.observe(document.body, { childList: true, subtree: true })
+
       return () => {
         document.body.classList.remove("dbot-analysis-active")
+        observer.disconnect()
       }
     }
-  }, [dashboard, run_panel, isDesktop])
+  }, [dashboard, run_panel, isDesktop, DBOT_TABS.BOT_BUILDER])
 
   const toggleTool = () => {
     setShowTool(!showTool)
