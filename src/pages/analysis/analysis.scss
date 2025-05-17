@@ -1,3 +1,6 @@
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
 .analysis-tools {
     display: flex;
     flex-direction: column;
@@ -41,45 +44,27 @@
         }
     }
 
-    &__centered-container {
+    &__content-wrapper {
         display: flex;
-        justify-content: flex-start; /* Changed from center to flex-start */
-        align-items: flex-start;
-        width: calc(100% - 366px); /* Leave space for the run panel (366px) */
-        height: calc(100% - 3.5rem);
-        padding: 1rem;
-        overflow-y: auto;
+        width: 100%;
+        height: calc(100vh - 180px);
         position: relative;
-        z-index: 5;
-        
-        @include mobile-or-tablet-screen {
-            width: 100%; /* Full width on mobile */
-        }
     }
 
-    &__iframe-wrapper {
-        width: 100%;
-        max-width: none;
-        height: calc(100vh - 180px); /* Dynamic height based on viewport */
-        border: 1px solid var(--general-section-3);
-        border-radius: 0.4rem;
+    &__iframe-container {
+        flex: 1;
+        padding: 1rem;
         overflow: hidden;
-        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
-        background-color: var(--general-section-1);
         position: relative;
-        margin-bottom: 2rem;
-        z-index: 5;
     }
 
     &__iframe {
-        position: absolute;
-        top: 0;
-        left: 0;
         width: 100%;
         height: 100%;
-        border: none;
-        transform: scale(0.95);
-        transform-origin: top center;
+        border: 1px solid var(--general-section-3);
+        border-radius: 0.4rem;
+        background-color: var(--general-section-1);
+        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
     }
 
     &__card {
@@ -136,26 +121,34 @@
     }
 }
 
-// Media query for larger screens
-@media (min-width: 1200px) {
-    .analysis-tools {
-        &__iframe-wrapper {
-            max-width: none;
-        }
-    }
-}
-
-// Media query for smaller screens
-@media (max-width: 768px) {
-    .analysis-tools {
-        &__centered-container {
-            width: 100% !important; /* Override the width on mobile */
-            float: none !important;
+/* Global styles for the dbot analysis page */
+:global {
+    body.dbot-analysis-active {
+        /* Ensure the run panel is visible */
+        .run-panel__container {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 10;
         }
         
-        &__iframe-wrapper {
-            max-width: 100%;
-            height: 450px;
+        /* Make sure the Run button is visible and clickable */
+        .header__run-button, 
+        [data-testid="dt_run_button"],
+        button[aria-label="Run"] {
+            z-index: 999 !important;
+            position: relative !important;
+            pointer-events: auto !important;
+        }
+        
+        /* Make sure the toggle button is visible */
+        .run-panel__toggle {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 20;
         }
     }
 }
