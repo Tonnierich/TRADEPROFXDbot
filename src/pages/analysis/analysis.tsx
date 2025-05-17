@@ -15,8 +15,11 @@ const Analysis = observer(() => {
 
   // Initialize the run panel when the component mounts
   useEffect(() => {
-    // Set the active tab to ANALYSIS to ensure the run panel is initialized correctly
-    dashboard.setActiveTab(DBOT_TABS.ANALYSIS)
+    // First, check if ANALYSIS is defined in DBOT_TABS
+    console.log("Available tabs:", DBOT_TABS);
+    
+    // Try using BOT_BUILDER tab which we know works
+    dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER)
 
     // Force the run panel to be visible
     if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
@@ -65,6 +68,30 @@ const Analysis = observer(() => {
             "style",
             "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
           )
+        }
+      } else {
+        console.log("Toggle button not found, creating one");
+        
+        // If toggle doesn't exist, try to create one
+        if (runPanelContainer) {
+          const newToggle = document.createElement('div');
+          newToggle.className = 'run-panel__toggle';
+          newToggle.textContent = '«';
+          newToggle.onclick = () => run_panel.toggleDrawer();
+          
+          if (isDesktop) {
+            newToggle.setAttribute(
+              "style",
+              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
+            )
+          } else {
+            newToggle.setAttribute(
+              "style",
+              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
+            )
+          }
+          
+          runPanelContainer.appendChild(newToggle);
         }
       }
     }
