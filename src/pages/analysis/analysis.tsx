@@ -37,6 +37,24 @@ const Analysis = observer(() => {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
+    // For mobile, ensure the drawer is properly positioned
+    if (isMobile) {
+      const ensureMobileDrawerVisibility = () => {
+        const drawerElement = document.querySelector(".dc-drawer")
+        if (drawerElement) {
+          drawerElement.setAttribute(
+            "style",
+            "transform: none !important; visibility: visible !important; opacity: 1 !important; transition: none !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important; z-index: 9999 !important;",
+          )
+        }
+      }
+
+      // Run immediately and after delays to ensure it takes effect
+      ensureMobileDrawerVisibility()
+      setTimeout(ensureMobileDrawerVisibility, 300)
+      setTimeout(ensureMobileDrawerVisibility, 1000)
+    }
+
     return () => {
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
