@@ -15,7 +15,7 @@ const Analysis = observer(() => {
   const containerRef = useRef(null)
   const iframeRef = useRef(null)
   const initializedRef = useRef(false)
-  const mobileToggleRef = useRef(null)
+  const toggleButtonRef = useRef(null)
 
   // Handle iframe loading
   const handleIframeLoad = () => {
@@ -23,49 +23,64 @@ const Analysis = observer(() => {
     console.log("Analysis iframe loaded successfully");
   };
 
-  // Function to create a mobile toggle button
-  const createMobileToggle = () => {
-    // Only proceed if we're on mobile
-    if (!isMobile) return null;
-    
-    // Create the toggle element if it doesn't exist
-    if (!mobileToggleRef.current) {
-      const toggle = document.createElement('div');
-      toggle.className = 'run-panel__mobile-toggle';
-      toggle.textContent = '«';
-      toggle.onclick = () => {
-        if (typeof run_panel.toggleDrawer === "function") {
-          run_panel.toggleDrawer();
-        }
-      };
-      
-      // Style the toggle
-      toggle.style.cssText = `
-        display: flex !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        position: fixed !important;
-        top: ${document.querySelector('.analysis-tools__compact-header')?.offsetHeight + 10}px !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        z-index: 10000 !important;
-        width: 60px !important;
-        height: 24px !important;
-        background-color: var(--general-main-1) !important;
-        border: 1px solid var(--border-normal) !important;
-        border-radius: 4px !important;
-        justify-content: center !important;
-        align-items: center !important;
-        cursor: pointer !important;
-        font-size: 16px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-      `;
-      
-      mobileToggleRef.current = toggle;
-      document.body.appendChild(toggle);
+  // Function to create a permanent toggle button
+  const createPermanentToggle = () => {
+    // Remove any existing toggle button we created
+    if (toggleButtonRef.current) {
+      try {
+        document.body.removeChild(toggleButtonRef.current);
+      } catch (e) {
+        console.log("Toggle button not in DOM");
+      }
+      toggleButtonRef.current = null;
     }
     
-    return mobileToggleRef.current;
+    // Create a new toggle button
+    const toggle = document.createElement('div');
+    toggle.className = 'dbot-permanent-toggle';
+    toggle.innerHTML = '&#x25BC;'; // Downward arrow
+    toggle.onclick = () => {
+      if (typeof run_panel.toggleDrawer === "function") {
+        run_panel.toggleDrawer();
+        
+        // Update the arrow direction based on drawer state
+        setTimeout(() => {
+          if (run_panel.is_drawer_open) {
+            toggle.innerHTML = '&#x25BC;'; // Downward arrow
+          } else {
+            toggle.innerHTML = '&#x25B2;'; // Upward arrow
+          }
+        }, 100);
+      }
+    };
+    
+    // Style the toggle to match the existing one
+    toggle.style.cssText = `
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      position: fixed !important;
+      top: ${isMobile ? '180px' : '104px'} !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      z-index: 10000 !important;
+      width: 60px !important;
+      height: 24px !important;
+      background-color: var(--general-main-1) !important;
+      border: 1px solid var(--border-normal) !important;
+      border-radius: 4px !important;
+      justify-content: center !important;
+      align-items: center !important;
+      cursor: pointer !important;
+      font-size: 16px !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    `;
+    
+    // Add to the document body
+    document.body.appendChild(toggle);
+    toggleButtonRef.current = toggle;
+    
+    return toggle;
   };
 
   // Initialize the run panel when the component mounts
@@ -127,9 +142,9 @@ const Analysis = observer(() => {
           }
         }
         
-        // For mobile, create a custom toggle button
+        // For mobile, create a permanent toggle button
         if (isMobile) {
-          createMobileToggle();
+          createPermanentToggle();
         }
       }
 
@@ -140,26 +155,54 @@ const Analysis = observer(() => {
     // Initialize run panel after the iframe has had time to load
     const timeoutId = setTimeout(initRunPanel, 1000);
 
+    // Set up an interval to ensure the toggle button is always visible
+    const toggleCheckInterval = setInterval(() => {
+      if (isMobile) {
+        // Check if our toggle button exists and is in the DOM
+        if (!toggleButtonRef.current || !document.body.contains(toggleButtonRef.current)) {
+          createPermanentToggle();
+        }
+        
+        // Update the arrow direction based on drawer state
+        if (toggleButtonRef.current) {
+          if (run_panel.is_drawer_open) {
+            toggleButtonRef.current.innerHTML = '&#x25BC;'; // Downward arrow
+          } else {
+            toggleButtonRef.current.innerHTML = '&#x25B2;'; // Upward arrow
+          }
+        }
+      }
+    }, 500);
+
     return () => {
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
       clearTimeout(timeoutId);
+      clearInterval(toggleCheckInterval);
       
-      // Remove the mobile toggle if it exists
-      if (mobileToggleRef.current) {
-        document.body.removeChild(mobileToggleRef.current);
-        mobileToggleRef.current = null;
+      // Remove the toggle button if it exists
+      if (toggleButtonRef.current) {
+        try {
+          document.body.removeChild(toggleButtonRef.current);
+        } catch (e) {
+          console.log("Toggle button not in DOM during cleanup");
+        }
+        toggleButtonRef.current = null;
       }
     }
   }, [dashboard, run_panel, isDesktop, isMobile])
 
   // Set up an additional effect to handle device type changes
   useEffect(() => {
-    if (isMobile) {
-      createMobileToggle();
-    } else if (mobileToggleRef.current) {
-      document.body.removeChild(mobileToggleRef.current);
-      mobileToggleRef.current = null;
+    if (isMobile && !toggleButtonRef.current) {
+      createPermanentToggle();
+    } else if (!isMobile && toggleButtonRef.current) {
+      try {
+        document.body.removeChild(toggleButtonRef.current);
+      } catch (e) {
+        console.log("Toggle button not in DOM during device change");
+      }
+      toggleButtonRef.current = null;
     }
   }, [isMobile]);
 
