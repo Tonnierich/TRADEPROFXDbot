@@ -15,7 +15,7 @@ const Analysis = observer(() => {
   const containerRef = useRef(null)
   const iframeRef = useRef(null)
   const initializedRef = useRef(false)
-  const mobileToggleIntervalRef = useRef(null)
+  const mobileToggleRef = useRef(null)
 
   // Handle iframe loading
   const handleIframeLoad = () => {
@@ -23,29 +23,49 @@ const Analysis = observer(() => {
     console.log("Analysis iframe loaded successfully");
   };
 
-  // Function to create or update the mobile toggle
-  const ensureMobileToggleExists = () => {
-    if (!isMobile) return;
+  // Function to create a mobile toggle button
+  const createMobileToggle = () => {
+    // Only proceed if we're on mobile
+    if (!isMobile) return null;
     
-    const runPanelContainer = document.querySelector(".run-panel__container");
-    if (!runPanelContainer) return;
-    
-    let toggle = document.querySelector(".run-panel__toggle");
-    
-    // If toggle doesn't exist, create it
-    if (!toggle) {
-      toggle = document.createElement('div');
-      toggle.className = 'run-panel__toggle';
+    // Create the toggle element if it doesn't exist
+    if (!mobileToggleRef.current) {
+      const toggle = document.createElement('div');
+      toggle.className = 'run-panel__mobile-toggle';
       toggle.textContent = '«';
-      toggle.onclick = () => run_panel.toggleDrawer();
-      runPanelContainer.appendChild(toggle);
+      toggle.onclick = () => {
+        if (typeof run_panel.toggleDrawer === "function") {
+          run_panel.toggleDrawer();
+        }
+      };
+      
+      // Style the toggle
+      toggle.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: fixed !important;
+        top: ${document.querySelector('.analysis-tools__compact-header')?.offsetHeight + 10}px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        z-index: 10000 !important;
+        width: 60px !important;
+        height: 24px !important;
+        background-color: var(--general-main-1) !important;
+        border: 1px solid var(--border-normal) !important;
+        border-radius: 4px !important;
+        justify-content: center !important;
+        align-items: center !important;
+        cursor: pointer !important;
+        font-size: 16px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+      `;
+      
+      mobileToggleRef.current = toggle;
+      document.body.appendChild(toggle);
     }
     
-    // Make sure the toggle is properly styled for mobile
-    toggle.setAttribute(
-      "style",
-      "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important; font-size: 16px !important;"
-    );
+    return mobileToggleRef.current;
   };
 
   // Initialize the run panel when the component mounts
@@ -62,7 +82,7 @@ const Analysis = observer(() => {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
-    // Ensure we're on the ANALYSIS tab, but don't force it repeatedly
+    // Ensure we're on the ANALYSIS tab
     if (dashboard.active_tab !== DBOT_TABS.ANALYSIS) {
       dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
     }
@@ -93,40 +113,28 @@ const Analysis = observer(() => {
           }
         }
 
-        // For the toggle button - position on LEFT side for desktop, TOP CENTER for mobile
-        const toggle = document.querySelector(".run-panel__toggle")
-        if (toggle) {
-          if (isDesktop) {
+        // For desktop, style the toggle button on the LEFT side
+        if (isDesktop) {
+          const toggle = document.querySelector(".run-panel__toggle")
+          if (toggle) {
             toggle.setAttribute(
               "style",
               "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
             )
             
-            // Also update the text content to show the correct arrow direction
+            // Update the text content to show the correct arrow direction
             toggle.textContent = "«"
-          } else {
-            // Mobile styling - position at the top center
-            ensureMobileToggleExists();
           }
-        } else if (isMobile) {
-          // If toggle doesn't exist on mobile, create one
-          ensureMobileToggleExists();
+        }
+        
+        // For mobile, create a custom toggle button
+        if (isMobile) {
+          createMobileToggle();
         }
       }
 
       // Run once after a delay
       setTimeout(ensureRunPanelVisibility, 500);
-      
-      // For mobile, set up an interval to keep checking for the toggle button
-      if (isMobile) {
-        // Clear any existing interval
-        if (mobileToggleIntervalRef.current) {
-          clearInterval(mobileToggleIntervalRef.current);
-        }
-        
-        // Set up a new interval
-        mobileToggleIntervalRef.current = setInterval(ensureMobileToggleExists, 500);
-      }
     };
 
     // Initialize run panel after the iframe has had time to load
@@ -137,35 +145,22 @@ const Analysis = observer(() => {
       document.body.classList.remove("dbot-analysis-mobile")
       clearTimeout(timeoutId);
       
-      // Clear the mobile toggle interval
-      if (mobileToggleIntervalRef.current) {
-        clearInterval(mobileToggleIntervalRef.current);
-        mobileToggleIntervalRef.current = null;
+      // Remove the mobile toggle if it exists
+      if (mobileToggleRef.current) {
+        document.body.removeChild(mobileToggleRef.current);
+        mobileToggleRef.current = null;
       }
     }
   }, [dashboard, run_panel, isDesktop, isMobile])
 
-  // Set up an additional effect to ensure the mobile toggle exists when the device type changes
+  // Set up an additional effect to handle device type changes
   useEffect(() => {
     if (isMobile) {
-      // Set up the interval if it doesn't exist
-      if (!mobileToggleIntervalRef.current) {
-        mobileToggleIntervalRef.current = setInterval(ensureMobileToggleExists, 500);
-      }
-    } else {
-      // Clear the interval if it exists
-      if (mobileToggleIntervalRef.current) {
-        clearInterval(mobileToggleIntervalRef.current);
-        mobileToggleIntervalRef.current = null;
-      }
+      createMobileToggle();
+    } else if (mobileToggleRef.current) {
+      document.body.removeChild(mobileToggleRef.current);
+      mobileToggleRef.current = null;
     }
-    
-    return () => {
-      if (mobileToggleIntervalRef.current) {
-        clearInterval(mobileToggleIntervalRef.current);
-        mobileToggleIntervalRef.current = null;
-      }
-    };
   }, [isMobile]);
 
   const toggleTool = () => {
