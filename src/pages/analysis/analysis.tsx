@@ -47,14 +47,17 @@ const Analysis = observer(() => {
         }
       }
 
-      // For the toggle button
+      // For the toggle button - position on RIGHT side for desktop with increased right value
       const toggle = document.querySelector(".run-panel__toggle")
       if (toggle) {
         if (isDesktop) {
           toggle.setAttribute(
             "style",
-            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important;"
+            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; right: 416px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
           )
+          
+          // Also update the text content to show the correct arrow direction
+          toggle.textContent = "»"
         } else {
           // Mobile styling - position at the top center
           toggle.setAttribute(
