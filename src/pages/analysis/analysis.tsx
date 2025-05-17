@@ -2,28 +2,40 @@
 
 import { observer } from "mobx-react-lite"
 import { Localize } from "@deriv-com/translations"
+import { useDevice } from "@deriv-com/ui"
 import { useState, useEffect } from "react"
+import { useStore } from "@/hooks/useStore"
 import "./analysis.scss"
 
 const Analysis = observer(() => {
+  const { isDesktop } = useDevice()
+  const { run_panel, dashboard } = useStore()
   const [showTool, setShowTool] = useState(true)
 
-  // Add class to body when tool is shown to adjust layout
-  useEffect(() => {
-    if (showTool) {
-      document.body.classList.add("show-summary-panel")
-    } else {
-      document.body.classList.remove("show-summary-panel")
-    }
+  // Get the toggleDrawer function from the run_panel store
+  const { toggleDrawer, is_drawer_open } = run_panel
 
-    return () => {
-      document.body.classList.remove("show-summary-panel")
-    }
-  }, [showTool])
+  // Get the active_tab and set_active_tab from dashboard store
+  const { active_tab, setActiveTab } = dashboard
 
   const toggleTool = () => {
     setShowTool(!showTool)
+
+    // When toggling the tool, ensure the run panel is visible when the tool is shown
+    if (!showTool && isDesktop) {
+      toggleDrawer(true)
+    }
   }
+
+  // When the component mounts or when showTool changes,
+  // update the active tab in the dashboard store to enable the run panel
+  useEffect(() => {
+    if (showTool) {
+      // Set the active tab to CHART or another value that enables the run panel
+      // This should match one of the values in DBOT_TABS that shows the run panel
+      setActiveTab("CHART")
+    }
+  }, [showTool, setActiveTab])
 
   return (
     <div className="analysis-tools">
@@ -70,3 +82,4 @@ const Analysis = observer(() => {
 })
 
 export default Analysis
+
