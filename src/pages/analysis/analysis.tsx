@@ -15,11 +15,37 @@ const Analysis = observer(() => {
   const containerRef = useRef(null)
   const iframeRef = useRef(null)
   const initializedRef = useRef(false)
+  const mobileToggleIntervalRef = useRef(null)
 
   // Handle iframe loading
   const handleIframeLoad = () => {
     setIsLoading(false);
     console.log("Analysis iframe loaded successfully");
+  };
+
+  // Function to create or update the mobile toggle
+  const ensureMobileToggleExists = () => {
+    if (!isMobile) return;
+    
+    const runPanelContainer = document.querySelector(".run-panel__container");
+    if (!runPanelContainer) return;
+    
+    let toggle = document.querySelector(".run-panel__toggle");
+    
+    // If toggle doesn't exist, create it
+    if (!toggle) {
+      toggle = document.createElement('div');
+      toggle.className = 'run-panel__toggle';
+      toggle.textContent = '«';
+      toggle.onclick = () => run_panel.toggleDrawer();
+      runPanelContainer.appendChild(toggle);
+    }
+    
+    // Make sure the toggle is properly styled for mobile
+    toggle.setAttribute(
+      "style",
+      "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important; font-size: 16px !important;"
+    );
   };
 
   // Initialize the run panel when the component mounts
@@ -80,26 +106,11 @@ const Analysis = observer(() => {
             toggle.textContent = "«"
           } else {
             // Mobile styling - position at the top center
-            toggle.setAttribute(
-              "style",
-              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
-            )
+            ensureMobileToggleExists();
           }
         } else if (isMobile) {
           // If toggle doesn't exist on mobile, create one
-          if (runPanelContainer) {
-            const newToggle = document.createElement('div');
-            newToggle.className = 'run-panel__toggle';
-            newToggle.textContent = '«';
-            newToggle.onclick = () => run_panel.toggleDrawer();
-            
-            newToggle.setAttribute(
-              "style",
-              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important;"
-            );
-            
-            runPanelContainer.appendChild(newToggle);
-          }
+          ensureMobileToggleExists();
         }
       }
 
@@ -108,34 +119,13 @@ const Analysis = observer(() => {
       
       // For mobile, set up an interval to keep checking for the toggle button
       if (isMobile) {
-        const mobileToggleInterval = setInterval(() => {
-          const toggle = document.querySelector(".run-panel__toggle");
-          if (!toggle) {
-            console.log("Mobile toggle not found, creating one");
-            const runPanelContainer = document.querySelector(".run-panel__container");
-            if (runPanelContainer) {
-              const newToggle = document.createElement('div');
-              newToggle.className = 'run-panel__toggle';
-              newToggle.textContent = '«';
-              newToggle.onclick = () => run_panel.toggleDrawer();
-              
-              newToggle.setAttribute(
-                "style",
-                "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important;"
-              );
-              
-              runPanelContainer.appendChild(newToggle);
-            }
-          } else {
-            // Make sure the toggle is properly styled for mobile
-            toggle.setAttribute(
-              "style",
-              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important;"
-            );
-          }
-        }, 1000);
+        // Clear any existing interval
+        if (mobileToggleIntervalRef.current) {
+          clearInterval(mobileToggleIntervalRef.current);
+        }
         
-        return () => clearInterval(mobileToggleInterval);
+        // Set up a new interval
+        mobileToggleIntervalRef.current = setInterval(ensureMobileToggleExists, 500);
       }
     };
 
@@ -146,8 +136,37 @@ const Analysis = observer(() => {
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
       clearTimeout(timeoutId);
+      
+      // Clear the mobile toggle interval
+      if (mobileToggleIntervalRef.current) {
+        clearInterval(mobileToggleIntervalRef.current);
+        mobileToggleIntervalRef.current = null;
+      }
     }
   }, [dashboard, run_panel, isDesktop, isMobile])
+
+  // Set up an additional effect to ensure the mobile toggle exists when the device type changes
+  useEffect(() => {
+    if (isMobile) {
+      // Set up the interval if it doesn't exist
+      if (!mobileToggleIntervalRef.current) {
+        mobileToggleIntervalRef.current = setInterval(ensureMobileToggleExists, 500);
+      }
+    } else {
+      // Clear the interval if it exists
+      if (mobileToggleIntervalRef.current) {
+        clearInterval(mobileToggleIntervalRef.current);
+        mobileToggleIntervalRef.current = null;
+      }
+    }
+    
+    return () => {
+      if (mobileToggleIntervalRef.current) {
+        clearInterval(mobileToggleIntervalRef.current);
+        mobileToggleIntervalRef.current = null;
+      }
+    };
+  }, [isMobile]);
 
   const toggleTool = () => {
     setShowTool(!showTool)
