@@ -14,53 +14,55 @@ const Analysis = observer(() => {
   const [isLoading, setIsLoading] = useState(true)
   const containerRef = useRef(null)
   const iframeRef = useRef(null)
-  const initializedRef = useRef(false)
-  const toggleButtonRef = useRef(null)
+  const toggleRef = useRef(null)
+  const originalToggleRef = useRef(null)
+  const intervalRef = useRef(null)
 
   // Handle iframe loading
   const handleIframeLoad = () => {
-    setIsLoading(false);
-    console.log("Analysis iframe loaded successfully");
-  };
+    setIsLoading(false)
+    console.log("Analysis iframe loaded successfully")
+  }
 
-  // Function to create a permanent toggle button
-  const createPermanentToggle = () => {
+  // Function to create a persistent toggle button
+  const createPersistentToggle = () => {
     // Remove any existing toggle button we created
-    if (toggleButtonRef.current) {
+    const existingToggle = document.getElementById("analysis-persistent-toggle")
+    if (existingToggle) {
       try {
-        document.body.removeChild(toggleButtonRef.current);
+        document.body.removeChild(existingToggle)
       } catch (e) {
-        console.log("Toggle button not in DOM");
+        console.log("Toggle button not in DOM")
       }
-      toggleButtonRef.current = null;
     }
-    
+
     // Create a new toggle button
-    const toggle = document.createElement('div');
-    toggle.className = 'dbot-permanent-toggle';
-    toggle.innerHTML = '&#x25BC;'; // Downward arrow
-    toggle.onclick = () => {
+    const toggle = document.createElement("div")
+    toggle.id = "analysis-persistent-toggle"
+    toggle.className = "analysis-persistent-toggle"
+
+    // Set the arrow direction based on drawer state
+    toggle.innerHTML = run_panel.is_drawer_open ? "▼" : "▲"
+
+    // Add click handler to toggle the run panel
+    toggle.addEventListener("click", () => {
       if (typeof run_panel.toggleDrawer === "function") {
-        run_panel.toggleDrawer();
-        
+        run_panel.toggleDrawer()
+
         // Update the arrow direction based on drawer state
         setTimeout(() => {
-          if (run_panel.is_drawer_open) {
-            toggle.innerHTML = '&#x25BC;'; // Downward arrow
-          } else {
-            toggle.innerHTML = '&#x25B2;'; // Upward arrow
-          }
-        }, 100);
+          toggle.innerHTML = run_panel.is_drawer_open ? "▼" : "▲"
+        }, 100)
       }
-    };
-    
+    })
+
     // Style the toggle to match the existing one
     toggle.style.cssText = `
       display: flex !important;
       visibility: visible !important;
       opacity: 1 !important;
       position: fixed !important;
-      top: ${isMobile ? '180px' : '104px'} !important;
+      top: ${isMobile ? "180px" : "104px"} !important;
       left: 50% !important;
       transform: translateX(-50%) !important;
       z-index: 10000 !important;
@@ -74,144 +76,83 @@ const Analysis = observer(() => {
       cursor: pointer !important;
       font-size: 16px !important;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    `;
-    
+    `
+
     // Add to the document body
-    document.body.appendChild(toggle);
-    toggleButtonRef.current = toggle;
-    
-    return toggle;
-  };
+    document.body.appendChild(toggle)
+    toggleRef.current = toggle
+
+    return toggle
+  }
 
   // Initialize the run panel when the component mounts
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    
-    // First initialize the analysis tool without the run panel
-    setIsLoading(true);
-    
+    // Important: Set the active tab to ensure the run panel is initialized correctly
+    dashboard.setActiveTab(DBOT_TABS.ANALYSIS)
+
+    // Force the run panel to be visible
+    if (!run_panel.is_drawer_open) {
+      run_panel.toggleDrawer(true)
+    }
+
     // Add a class to the body to help with styling
     document.body.classList.add("dbot-analysis-active")
     if (isMobile) {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
-    // Ensure we're on the ANALYSIS tab
-    if (dashboard.active_tab !== DBOT_TABS.ANALYSIS) {
-      dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
+    // Make sure the run panel wrapper is visible
+    const runPanelElement = document.querySelector(".main__run-strategy-wrapper")
+    if (runPanelElement) {
+      runPanelElement.classList.remove("hidden")
     }
 
-    // Delayed initialization of run panel to avoid performance issues
-    const initRunPanel = () => {
-      // Force the run panel to be visible
-      if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
-        run_panel.toggleDrawer(true);
-      }
-
-      // Function to ensure run panel elements are visible and properly styled
-      const ensureRunPanelVisibility = () => {
-        // For the run panel container
-        const runPanelContainer = document.querySelector(".run-panel__container")
-        if (runPanelContainer) {
-          if (isDesktop) {
-            runPanelContainer.setAttribute(
-              "style",
-              "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; top: 104px !important; right: 0 !important; width: 366px !important; height: calc(100vh - 104px) !important;"
-            )
-          } else {
-            // Mobile styling
-            runPanelContainer.setAttribute(
-              "style",
-              "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important; border-top: 1px solid var(--border-normal) !important;"
-            )
-          }
-        }
-
-        // For desktop, style the toggle button on the LEFT side
-        if (isDesktop) {
-          const toggle = document.querySelector(".run-panel__toggle")
-          if (toggle) {
-            toggle.setAttribute(
-              "style",
-              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
-            )
-            
-            // Update the text content to show the correct arrow direction
-            toggle.textContent = "«"
-          }
-        }
-        
-        // For mobile, create a permanent toggle button
-        if (isMobile) {
-          createPermanentToggle();
-        }
-      }
-
-      // Run once after a delay
-      setTimeout(ensureRunPanelVisibility, 500);
-    };
-
-    // Initialize run panel after the iframe has had time to load
-    const timeoutId = setTimeout(initRunPanel, 1000);
+    // Create the persistent toggle button
+    createPersistentToggle()
 
     // Set up an interval to ensure the toggle button is always visible
-    const toggleCheckInterval = setInterval(() => {
-      if (isMobile) {
-        // Check if our toggle button exists and is in the DOM
-        if (!toggleButtonRef.current || !document.body.contains(toggleButtonRef.current)) {
-          createPermanentToggle();
-        }
-        
+    intervalRef.current = setInterval(() => {
+      const existingToggle = document.getElementById("analysis-persistent-toggle")
+      if (!existingToggle) {
+        console.log("Toggle button disappeared, recreating...")
+        createPersistentToggle()
+      } else if (existingToggle) {
         // Update the arrow direction based on drawer state
-        if (toggleButtonRef.current) {
-          if (run_panel.is_drawer_open) {
-            toggleButtonRef.current.innerHTML = '&#x25BC;'; // Downward arrow
-          } else {
-            toggleButtonRef.current.innerHTML = '&#x25B2;'; // Upward arrow
-          }
-        }
+        existingToggle.innerHTML = run_panel.is_drawer_open ? "▼" : "▲"
       }
-    }, 500);
+    }, 500)
 
     return () => {
+      // Clean up
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
-      clearTimeout(timeoutId);
-      clearInterval(toggleCheckInterval);
-      
-      // Remove the toggle button if it exists
-      if (toggleButtonRef.current) {
-        try {
-          document.body.removeChild(toggleButtonRef.current);
-        } catch (e) {
-          console.log("Toggle button not in DOM during cleanup");
-        }
-        toggleButtonRef.current = null;
-      }
-    }
-  }, [dashboard, run_panel, isDesktop, isMobile])
 
-  // Set up an additional effect to handle device type changes
-  useEffect(() => {
-    if (isMobile && !toggleButtonRef.current) {
-      createPermanentToggle();
-    } else if (!isMobile && toggleButtonRef.current) {
-      try {
-        document.body.removeChild(toggleButtonRef.current);
-      } catch (e) {
-        console.log("Toggle button not in DOM during device change");
+      // Clear the interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
       }
-      toggleButtonRef.current = null;
+
+      // Remove the toggle button
+      const existingToggle = document.getElementById("analysis-persistent-toggle")
+      if (existingToggle) {
+        try {
+          document.body.removeChild(existingToggle)
+        } catch (e) {
+          console.log("Toggle button not in DOM during cleanup")
+        }
+      }
     }
-  }, [isMobile]);
+  }, [dashboard, run_panel, isDesktop, isMobile, DBOT_TABS.ANALYSIS])
 
   const toggleTool = () => {
     setShowTool(!showTool)
   }
 
   return (
-    <div className={`analysis-tools ${showTool ? "analysis-tools--with-panel" : ""} ${isMobile ? "analysis-tools--mobile" : ""}`} ref={containerRef}>
+    <div
+      className={`analysis-tools ${showTool ? "analysis-tools--with-panel" : ""} ${isMobile ? "analysis-tools--mobile" : ""}`}
+      ref={containerRef}
+    >
       <div className="analysis-tools__compact-header">
         <h2 className="analysis-tools__title">
           <Localize i18n_default_text="Analysis Tools" />
@@ -226,7 +167,7 @@ const Analysis = observer(() => {
           {isLoading && (
             <div className="analysis-tools__loading">
               <div className="analysis-tools__loading-spinner"></div>
-              <p>Please wait, loading analysis tool...</p>
+              <p>Loading analysis tool...</p>
             </div>
           )}
           <div className="analysis-tools__iframe-container">
@@ -238,7 +179,7 @@ const Analysis = observer(() => {
               allow="fullscreen"
               scrolling="no"
               onLoad={handleIframeLoad}
-              style={{ visibility: isLoading ? 'hidden' : 'visible' }}
+              style={{ visibility: isLoading ? "hidden" : "visible" }}
             />
           </div>
         </div>
@@ -264,3 +205,4 @@ const Analysis = observer(() => {
 })
 
 export default Analysis
+
