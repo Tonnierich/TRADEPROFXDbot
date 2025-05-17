@@ -36,18 +36,10 @@ const Analysis = observer(() => {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
-    // IMPORTANT: Set the active tab to ANALYSIS, not BOT_BUILDER
-    dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
-    console.log("Set active tab to ANALYSIS");
-
-    // Set up an interval to keep the active tab as ANALYSIS
-    const keepAnalysisActiveInterval = setInterval(() => {
-      // Check if the active tab has changed from ANALYSIS
-      if (dashboard.active_tab !== DBOT_TABS.ANALYSIS) {
-        console.log("Tab changed from ANALYSIS to", dashboard.active_tab, "- forcing back to ANALYSIS");
-        dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
-      }
-    }, 500);
+    // Ensure we're on the ANALYSIS tab, but don't force it repeatedly
+    if (dashboard.active_tab !== DBOT_TABS.ANALYSIS) {
+      dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
+    }
 
     // Delayed initialization of run panel to avoid performance issues
     const initRunPanel = () => {
@@ -103,25 +95,10 @@ const Analysis = observer(() => {
     // Initialize run panel after the iframe has had time to load
     const timeoutId = setTimeout(initRunPanel, 1000);
 
-    // Override the dashboard's setActiveTab method to prevent changing from ANALYSIS
-    const originalSetActiveTab = dashboard.setActiveTab;
-    dashboard.setActiveTab = function(tab) {
-      console.log("Attempt to set active tab to:", tab);
-      if (tab !== DBOT_TABS.ANALYSIS && document.body.classList.contains("dbot-analysis-active")) {
-        console.log("Preventing tab change from ANALYSIS to", tab);
-        return;
-      }
-      originalSetActiveTab.call(this, tab);
-    };
-
     return () => {
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
       clearTimeout(timeoutId);
-      clearInterval(keepAnalysisActiveInterval);
-      
-      // Restore the original setActiveTab method
-      dashboard.setActiveTab = originalSetActiveTab;
     }
   }, [dashboard, run_panel, isDesktop, isMobile])
 
