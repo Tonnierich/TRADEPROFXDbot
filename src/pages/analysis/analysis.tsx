@@ -11,108 +11,88 @@ const Analysis = observer(() => {
   const { isDesktop, isMobile } = useDevice()
   const { run_panel, dashboard } = useStore()
   const [showTool, setShowTool] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const containerRef = useRef(null)
+  const iframeRef = useRef(null)
+
+  // Handle iframe loading
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    console.log("Analysis iframe loaded successfully");
+  };
 
   // Initialize the run panel when the component mounts
   useEffect(() => {
-    // First, check if ANALYSIS is defined in DBOT_TABS
-    console.log("Available tabs:", DBOT_TABS);
+    // First initialize the analysis tool without the run panel
+    setIsLoading(true);
     
-    // Try using BOT_BUILDER tab which we know works
-    dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER)
-
-    // Force the run panel to be visible
-    if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
-      run_panel.toggleDrawer(true)
-    }
-
     // Add a class to the body to help with styling
     document.body.classList.add("dbot-analysis-active")
     if (isMobile) {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
-    // Function to ensure run panel elements are visible and properly styled
-    const ensureRunPanelVisibility = () => {
-      // For the run panel container
-      const runPanelContainer = document.querySelector(".run-panel__container")
-      if (runPanelContainer) {
-        if (isDesktop) {
-          runPanelContainer.setAttribute(
-            "style",
-            "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; top: 104px !important; right: 0 !important; width: 366px !important; height: calc(100vh - 104px) !important;"
-          )
-        } else {
-          // Mobile styling
-          runPanelContainer.setAttribute(
-            "style",
-            "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important;"
-          )
-        }
+    // Delayed initialization of run panel to avoid performance issues
+    const initRunPanel = () => {
+      // Try using BOT_BUILDER tab which we know works
+      dashboard.setActiveTab(DBOT_TABS.BOT_BUILDER)
+
+      // Force the run panel to be visible
+      if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
+        run_panel.toggleDrawer(true)
       }
 
-      // For the toggle button - position on LEFT side for desktop
-      const toggle = document.querySelector(".run-panel__toggle")
-      if (toggle) {
-        if (isDesktop) {
-          toggle.setAttribute(
-            "style",
-            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
-          )
-          
-          // Also update the text content to show the correct arrow direction
-          toggle.textContent = "«"
-        } else {
-          // Mobile styling - position at the top center
-          toggle.setAttribute(
-            "style",
-            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
-          )
-        }
-      } else {
-        console.log("Toggle button not found, creating one");
-        
-        // If toggle doesn't exist, try to create one
+      // Function to ensure run panel elements are visible and properly styled
+      const ensureRunPanelVisibility = () => {
+        // For the run panel container
+        const runPanelContainer = document.querySelector(".run-panel__container")
         if (runPanelContainer) {
-          const newToggle = document.createElement('div');
-          newToggle.className = 'run-panel__toggle';
-          newToggle.textContent = '«';
-          newToggle.onclick = () => run_panel.toggleDrawer();
-          
           if (isDesktop) {
-            newToggle.setAttribute(
+            runPanelContainer.setAttribute(
+              "style",
+              "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; top: 104px !important; right: 0 !important; width: 366px !important; height: calc(100vh - 104px) !important;"
+            )
+          } else {
+            // Mobile styling
+            runPanelContainer.setAttribute(
+              "style",
+              "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important;"
+            )
+          }
+        }
+
+        // For the toggle button - position on LEFT side for desktop
+        const toggle = document.querySelector(".run-panel__toggle")
+        if (toggle) {
+          if (isDesktop) {
+            toggle.setAttribute(
               "style",
               "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
             )
+            
+            // Also update the text content to show the correct arrow direction
+            toggle.textContent = "«"
           } else {
-            newToggle.setAttribute(
+            // Mobile styling - position at the top center
+            toggle.setAttribute(
               "style",
               "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
             )
           }
-          
-          runPanelContainer.appendChild(newToggle);
         }
       }
-    }
 
-    // Run immediately and set up an interval to keep checking
-    ensureRunPanelVisibility()
-    const intervalId = setInterval(ensureRunPanelVisibility, 1000)
+      // Run once after a delay
+      setTimeout(ensureRunPanelVisibility, 500);
+    };
 
-    // Set up a MutationObserver to watch for changes to the DOM
-    const observer = new MutationObserver(() => {
-      ensureRunPanelVisibility()
-    })
-    
-    // Start observing the document body
-    observer.observe(document.body, { childList: true, subtree: true })
+    // Initialize run panel after the iframe has had time to load
+    const timeoutId = setTimeout(initRunPanel, 2000);
 
     return () => {
       document.body.classList.remove("dbot-analysis-active")
       document.body.classList.remove("dbot-analysis-mobile")
-      clearInterval(intervalId)
-      observer.disconnect()
+      clearTimeout(timeoutId);
     }
   }, [dashboard, run_panel, isDesktop, isMobile])
 
@@ -133,13 +113,22 @@ const Analysis = observer(() => {
 
       {showTool ? (
         <div className="analysis-tools__content-wrapper">
+          {isLoading && (
+            <div className="analysis-tools__loading">
+              <div className="analysis-tools__loading-spinner"></div>
+              <p>Please wait, loading analysis tool...</p>
+            </div>
+          )}
           <div className="analysis-tools__iframe-container">
             <iframe
+              ref={iframeRef}
               src="https://v0-convert-to-react-eta.vercel.app/"
               className="analysis-tools__iframe"
               title="TRADEPROFX Analysis Tool"
               allow="fullscreen"
               scrolling="no"
+              onLoad={handleIframeLoad}
+              style={{ visibility: isLoading ? 'hidden' : 'visible' }}
             />
           </div>
         </div>
