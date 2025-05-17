@@ -12,30 +12,31 @@ const Analysis = observer(() => {
   const { run_panel, dashboard } = useStore()
   const [showTool, setShowTool] = useState(true)
 
-  // Get the toggleDrawer function from the run_panel store
-  const { toggleDrawer, is_drawer_open } = run_panel
+  // Initialize the run panel when the component mounts
+  useEffect(() => {
+    if (showTool && isDesktop) {
+      // Set the active tab to BOT_BUILDER to enable the run panel
+      dashboard.setActiveTab("BOT_BUILDER")
+      
+      // Make sure the run panel is visible
+      if (!run_panel.is_drawer_open) {
+        run_panel.toggleDrawer(true)
+      }
+      
+      // Add a class to the body to help with styling
+      document.body.classList.add("dbot-analysis-active")
+    } else {
+      document.body.classList.remove("dbot-analysis-active")
+    }
 
-  // Get the active_tab and set_active_tab from dashboard store
-  const { active_tab, setActiveTab } = dashboard
+    return () => {
+      document.body.classList.remove("dbot-analysis-active")
+    }
+  }, [showTool, dashboard, run_panel, isDesktop])
 
   const toggleTool = () => {
     setShowTool(!showTool)
-
-    // When toggling the tool, ensure the run panel is visible when the tool is shown
-    if (!showTool && isDesktop) {
-      toggleDrawer(true)
-    }
   }
-
-  // When the component mounts or when showTool changes,
-  // update the active tab in the dashboard store to enable the run panel
-  useEffect(() => {
-    if (showTool) {
-      // Set the active tab to CHART or another value that enables the run panel
-      // This should match one of the values in DBOT_TABS that shows the run panel
-      setActiveTab("CHART")
-    }
-  }, [showTool, setActiveTab])
 
   return (
     <div className="analysis-tools">
@@ -49,8 +50,8 @@ const Analysis = observer(() => {
       </div>
 
       {showTool ? (
-        <div className="analysis-tools__centered-container">
-          <div className="analysis-tools__iframe-wrapper">
+        <div className="analysis-tools__content-wrapper">
+          <div className="analysis-tools__iframe-container">
             <iframe
               src="https://v0-convert-to-react-eta.vercel.app/"
               className="analysis-tools__iframe"
@@ -59,6 +60,9 @@ const Analysis = observer(() => {
               scrolling="no"
             />
           </div>
+          
+          {/* We don't need to include the RunPanel directly, 
+              the app will handle it through the store interactions */}
         </div>
       ) : (
         <div className="analysis-tools__card">
@@ -82,4 +86,3 @@ const Analysis = observer(() => {
 })
 
 export default Analysis
-
