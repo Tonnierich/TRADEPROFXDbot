@@ -1,3 +1,40 @@
+/* Global styles for summary panel visibility */
+:global {
+  body.show-summary-panel {
+    /* This will make the app adjust its layout to show the summary panel */
+    .analysis-tools__centered-container {
+      width: calc(100% - 320px); /* Adjust width to make room for summary panel */
+      float: left;
+    }
+    
+    .analysis-tools__iframe-wrapper {
+      width: 100%;
+      max-width: none;
+    }
+    
+    /* Make sure the Run button is visible and clickable */
+    .header__run-button, 
+    [data-testid="dt_run_button"],
+    button[aria-label="Run"],
+    .run-panel {
+      z-index: 999 !important;
+      position: relative !important;
+      pointer-events: auto !important;
+    }
+    
+    /* Make sure the summary panel is visible */
+    .summary-panel,
+    .contract-summary,
+    [data-testid="dt_contract_summary"],
+    .sidebar-summary {
+      display: block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+  }
+}
+
 .analysis-tools {
     display: flex;
     flex-direction: column;
@@ -43,7 +80,7 @@
 
     &__centered-container {
         display: flex;
-        justify-content: center;
+        justify-content: flex-start; /* Changed from center to flex-start */
         align-items: flex-start;
         width: 100%;
         height: calc(100% - 3.5rem);
@@ -56,7 +93,7 @@
     &__iframe-wrapper {
         width: 100%;
         max-width: 800px;
-        height: 500px;
+        height: calc(100vh - 180px); /* Dynamic height based on viewport */
         border: 1px solid var(--general-section-3);
         border-radius: 0.4rem;
         overflow: hidden;
@@ -137,7 +174,6 @@
     .analysis-tools {
         &__iframe-wrapper {
             max-width: 900px;
-            height: 550px;
         }
     }
 }
@@ -145,6 +181,11 @@
 // Media query for smaller screens
 @media (max-width: 768px) {
     .analysis-tools {
+        &__centered-container {
+            width: 100% !important; /* Override the width on mobile */
+            float: none !important;
+        }
+        
         &__iframe-wrapper {
             max-width: 100%;
             height: 450px;
