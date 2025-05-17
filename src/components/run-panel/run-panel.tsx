@@ -22,14 +22,10 @@ import { useDevice } from "@deriv-com/ui"
 import ThemedScrollbars from "../shared_ui/themed-scrollbars"
 import "./run-panel.scss"
 
-type TRunPanel = {
-  active_tour?: string
-  is_drawer_open?: boolean
-  is_multiplier?: boolean
-  is_running?: boolean
-  is_contract_loading?: boolean
-  onRunButtonClick?: () => void
-  onClearStatClick?: () => void
+type TStatisticsTile = {
+  content: React.ElementType | string
+  contentClassName: string
+  title: string
 }
 
 type TStatisticsSummary = {
@@ -66,39 +62,6 @@ type TStatisticsInfoModal = {
   is_mobile: boolean
   is_statistics_info_modal_open: boolean
   toggleStatisticsInfoModal: () => void
-}
-
-type TRunPanelInfoProps = {
-  is_drawer_open?: boolean
-  is_running?: boolean
-  is_multiplier?: boolean
-  is_contract_loading?: boolean
-  onRunButtonClick?: () => void
-  onClearStatClick?: () => void
-}
-
-type TRunPanelHeaderProps = {
-  is_running?: boolean
-  is_drawer_open?: boolean
-  is_multiplier?: boolean
-  is_contract_loading?: boolean
-  onRunButtonClick?: () => void
-  onClearStatClick?: () => void
-}
-
-type TRunPanelFooterProps = {
-  is_running?: boolean
-  is_drawer_open?: boolean
-  is_multiplier?: boolean
-  is_contract_loading?: boolean
-  onRunButtonClick?: () => void
-  onClearStatClick?: () => void
-}
-
-type TStatisticsTile = {
-  content: React.ElementType | string
-  contentClassName: string
-  title: string
 }
 
 const StatisticsTile = ({ content, contentClassName, title }: TStatisticsTile) => (
@@ -314,6 +277,12 @@ const RunPanel = observer(() => {
   const [isAnalysisTab, setIsAnalysisTab] = React.useState(false)
   // Add ref to track the persistent toggle button
   const persistentToggleRef = React.useRef(null)
+  // Add state to track if we're in a mobile view
+  const isMobile = !isDesktop
+  // Add state to track if we should force the drawer to stay open
+  const [forceDrawerOpen, setForceDrawerOpen] = React.useState(false)
+  // Add ref to track the interval ID
+  const intervalRef = React.useRef(null)
 
   // Function to create a persistent toggle button for mobile
   const createPersistentToggle = () => {
@@ -336,36 +305,44 @@ const RunPanel = observer(() => {
     toggle.innerHTML = is_drawer_open ? "▼" : "▲"
 
     // Add click handler to toggle the run panel
-    toggle.addEventListener("click", () => {
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+
+      // Toggle the drawer
       toggleDrawer()
 
-      // Update the arrow direction based on drawer state
+      // Update the arrow direction
       setTimeout(() => {
         toggle.innerHTML = !is_drawer_open ? "▼" : "▲"
       }, 100)
+
+      // Prevent the toggle from disappearing
+      setForceDrawerOpen(true)
+      setTimeout(() => setForceDrawerOpen(false), 500)
     })
 
     // Style the toggle to match the existing one
     toggle.style.cssText = `
-            display: flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            position: fixed !important;
-            top: 180px !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            z-index: 10000 !important;
-            width: 60px !important;
-            height: 24px !important;
-            background-color: var(--general-main-1) !important;
-            border: 1px solid var(--border-normal) !important;
-            border-radius: 4px !important;
-            justify-content: center !important;
-            align-items: center !important;
-            cursor: pointer !important;
-            font-size: 16px !important;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-        `
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      position: fixed !important;
+      top: 180px !important;
+      left: 50% !important;
+      transform: translateX(-50%) !important;
+      z-index: 10000 !important;
+      width: 60px !important;
+      height: 24px !important;
+      background-color: var(--general-main-1) !important;
+      border: 1px solid var(--border-normal) !important;
+      border-radius: 4px !important;
+      justify-content: center !important;
+      align-items: center !important;
+      cursor: pointer !important;
+      font-size: 16px !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    `
 
     // Add to the document body
     document.body.appendChild(toggle)
@@ -389,33 +366,57 @@ const RunPanel = observer(() => {
       document.body.classList.add("dbot-analysis-active")
 
       // For mobile devices, create a persistent toggle
-      if (!isDesktop) {
+      if (isMobile) {
         createPersistentToggle()
 
         // Set up an interval to ensure the toggle is always visible
-        const toggleInterval = setInterval(() => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+        }
+
+        intervalRef.current = setInterval(() => {
           const existingToggle = document.getElementById("analysis-persistent-toggle")
-          if (!existingToggle) {
+          if (!existingToggle && !forceDrawerOpen) {
             createPersistentToggle()
           } else if (existingToggle) {
             // Update the arrow direction based on drawer state
             existingToggle.innerHTML = is_drawer_open ? "▼" : "▲"
           }
-        }, 500)
+        }, 300)
 
-        return () => {
-          clearInterval(toggleInterval)
-          // Remove the toggle button when leaving Analysis tab
-          const existingToggle = document.getElementById("analysis-persistent-toggle")
-          if (existingToggle) {
-            try {
-              document.body.removeChild(existingToggle)
-            } catch (e) {
-              console.log("Toggle button not in DOM during cleanup")
-            }
+        // Ensure the drawer is properly positioned for mobile
+        const ensureMobileDrawerVisibility = () => {
+          const drawerElement = document.querySelector(".dc-drawer")
+          if (drawerElement && is_drawer_open) {
+            drawerElement.setAttribute(
+              "style",
+              "transform: none !important; visibility: visible !important; opacity: 1 !important; transition: none !important;",
+            )
           }
-          document.body.classList.remove("dbot-analysis-active")
         }
+
+        // Run immediately and after a delay
+        ensureMobileDrawerVisibility()
+        setTimeout(ensureMobileDrawerVisibility, 300)
+        setTimeout(ensureMobileDrawerVisibility, 1000)
+      }
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+
+        // Remove the toggle button when leaving Analysis tab
+        const existingToggle = document.getElementById("analysis-persistent-toggle")
+        if (existingToggle) {
+          try {
+            document.body.removeChild(existingToggle)
+          } catch (e) {
+            console.log("Toggle button not in DOM during cleanup")
+          }
+        }
+        document.body.classList.remove("dbot-analysis-active")
       }
     } else {
       document.body.classList.remove("dbot-analysis-active")
@@ -429,42 +430,53 @@ const RunPanel = observer(() => {
           console.log("Toggle button not in DOM during cleanup")
         }
       }
+
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
     }
 
-    if (!isDesktop) {
-      toggleDrawer(false)
+    // Don't auto-close drawer on mobile when switching tabs
+    if (isMobile && isInAnalysisTab) {
+      // Keep drawer open in Analysis tab on mobile
+      if (!is_drawer_open) {
+        toggleDrawer(true)
+      }
     }
-  }, [active_tab, isDesktop, toggleDrawer, is_drawer_open, ANALYSIS])
+  }, [active_tab, isDesktop, toggleDrawer, is_drawer_open, ANALYSIS, isMobile, forceDrawerOpen])
 
   // Custom toggle function to handle Analysis tab differently
   const handleToggleDrawer = () => {
-    // Store the current state of the drawer
-    const wasOpen = is_drawer_open
+    // If we're in the Analysis tab on mobile, handle specially
+    if (isAnalysisTab && isMobile) {
+      // Store the current state of the drawer
+      const wasOpen = is_drawer_open
 
-    // Call the original toggleDrawer function
-    toggleDrawer()
+      // Call the original toggleDrawer function
+      toggleDrawer()
 
-    // If we're in the Analysis tab and the drawer was open (meaning we're closing it)
-    // We need to make sure it stays visible but collapsed
-    if (isAnalysisTab && wasOpen) {
-      // Add a small delay to ensure the drawer state has updated
+      // Force the persistent toggle to update
       setTimeout(() => {
-        // Find the drawer element
-        const drawerElement = document.querySelector(".dc-drawer")
-        if (drawerElement) {
-          // Make sure it's still visible but collapsed
-          drawerElement.setAttribute(
-            "style",
-            "transform: translateX(366px) !important; visibility: visible !important; opacity: 1 !important; transition: transform 0.3s ease !important;",
-          )
-        }
-
-        // Update the persistent toggle button if it exists
         const persistentToggle = document.getElementById("analysis-persistent-toggle")
         if (persistentToggle) {
-          persistentToggle.innerHTML = "▲" // Up arrow when drawer is closed
+          persistentToggle.innerHTML = wasOpen ? "▲" : "▼" // Update arrow direction
+        }
+
+        // If we're closing the drawer, make sure it stays visible but collapsed
+        if (wasOpen) {
+          const drawerElement = document.querySelector(".dc-drawer")
+          if (drawerElement) {
+            drawerElement.setAttribute(
+              "style",
+              "transform: translateY(80%) !important; visibility: visible !important; opacity: 1 !important; transition: transform 0.3s ease !important;",
+            )
+          }
         }
       }, 50)
+    } else {
+      // For other tabs or desktop, use normal toggle
+      toggleDrawer()
     }
   }
 
@@ -473,7 +485,7 @@ const RunPanel = observer(() => {
       active_index={active_index}
       currency={currency}
       is_drawer_open={is_drawer_open}
-      is_mobile={!isDesktop}
+      is_mobile={isMobile}
       lost_contracts={lost_contracts}
       number_of_runs={number_of_runs}
       setActiveTabIndex={setActiveTabIndex}
@@ -491,7 +503,7 @@ const RunPanel = observer(() => {
   const header = (
     <DrawerHeader
       is_clear_stat_disabled={is_clear_stat_disabled}
-      is_mobile={!isDesktop}
+      is_mobile={isMobile}
       is_drawer_open={is_drawer_open}
       onClearStatClick={onClearStatClick}
     />
@@ -510,6 +522,7 @@ const RunPanel = observer(() => {
             "run-panel__container": isDesktop,
             "run-panel__container--tour-active": isDesktop && active_tour,
             "run-panel__container--analysis": isDesktop && active_tab === ANALYSIS,
+            "run-panel__container--mobile-analysis": !isDesktop && active_tab === ANALYSIS,
           })}
           contentClassName="run-panel__content"
           header={header}
