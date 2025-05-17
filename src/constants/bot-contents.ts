@@ -1,4 +1,3 @@
-// src/constants/bot-contents.ts
 type TTabsTitle = {
     [key: string]: string | number;
 };
