@@ -270,17 +270,49 @@ const RunPanel = observer(() => {
     const { total_payout, total_profit, total_stake, won_contracts, lost_contracts, number_of_runs } = statistics;
     const { BOT_BUILDER, CHART, ANALYSIS } = DBOT_TABS;
 
+    // Add state to track if we're in the Analysis tab
+    const [isAnalysisTab, setIsAnalysisTab] = React.useState(false);
+
     React.useEffect(() => {
         onMount();
         return () => onUnmount();
     }, [onMount, onUnmount]);
 
     React.useEffect(() => {
+        // Check if we're in the Analysis tab
+        setIsAnalysisTab(active_tab === ANALYSIS);
+
         if (!isDesktop) {
             toggleDrawer(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [active_tab]);
+
+    // Custom toggle function to handle Analysis tab differently
+    const handleToggleDrawer = () => {
+        // Store the current state of the drawer
+        const wasOpen = is_drawer_open;
+        
+        // Call the original toggleDrawer function
+        toggleDrawer();
+        
+        // If we're in the Analysis tab and the drawer was open (meaning we're closing it)
+        // We need to make sure it stays visible but collapsed
+        if (isAnalysisTab && wasOpen) {
+            // Add a small delay to ensure the drawer state has updated
+            setTimeout(() => {
+                // Find the drawer element
+                const drawerElement = document.querySelector('.dc-drawer');
+                if (drawerElement) {
+                    // Make sure it's still visible but collapsed
+                    drawerElement.setAttribute(
+                        'style',
+                        'transform: translateX(366px) !important; visibility: visible !important; opacity: 1 !important; transition: transform 0.3s ease !important;'
+                    );
+                }
+            }, 50);
+        }
+    };
 
     const content = (
         <DrawerContent
@@ -323,12 +355,13 @@ const RunPanel = observer(() => {
                     className={classNames('run-panel', {
                         'run-panel__container': isDesktop,
                         'run-panel__container--tour-active': isDesktop && active_tour,
+                        'run-panel__container--analysis': isDesktop && active_tab === ANALYSIS,
                     })}
                     contentClassName='run-panel__content'
                     header={header}
                     footer={isDesktop && footer}
                     is_open={is_drawer_open}
-                    toggleDrawer={toggleDrawer}
+                    toggleDrawer={handleToggleDrawer} // Use our custom toggle function
                     width={366}
                     zIndex={popover_zindex.RUN_PANEL}
                 >
