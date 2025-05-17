@@ -9,7 +9,6 @@ import "./strategies.scss"
 const Strategies = observer(() => {
   const { isDesktop } = useDevice()
   const [showTradeProfXTool, setShowTradeProfXTool] = useState(false)
-  const [iframeHeight, setIframeHeight] = useState("100%")
   const [activeToolUrl, setActiveToolUrl] = useState("https://v0-tradeprofxaccumulator.vercel.app/")
   const containerRef = useRef(null)
 
@@ -22,25 +21,16 @@ const Strategies = observer(() => {
     }
   }
 
-  // Calculate and set the iframe height when the tool is shown
+  // Add class to body when tool is shown to adjust layout
   useEffect(() => {
-    if (showTradeProfXTool && containerRef.current) {
-      const calculateHeight = () => {
-        const windowHeight = window.innerHeight
-        // Calculate height to leave space for the header and run button
-        const headerHeight = 60 // Approximate height of the Deriv header
-        const runButtonArea = 60 // Space to leave for the run button
-        const newHeight = windowHeight - headerHeight - runButtonArea
-        setIframeHeight(`${newHeight}px`)
-      }
+    if (showTradeProfXTool) {
+      document.body.classList.add("show-summary-panel")
+    } else {
+      document.body.classList.remove("show-summary-panel")
+    }
 
-      // Calculate initially and on resize
-      calculateHeight()
-      window.addEventListener("resize", calculateHeight)
-
-      return () => {
-        window.removeEventListener("resize", calculateHeight)
-      }
+    return () => {
+      document.body.classList.remove("show-summary-panel")
     }
   }, [showTradeProfXTool])
 
@@ -82,13 +72,6 @@ const Strategies = observer(() => {
               frameBorder="0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              style={{
-                display: "block",
-                width: "100%",
-                height: iframeHeight,
-                border: "none",
-                overflow: "hidden",
-              }}
             ></iframe>
           </div>
         </div>
@@ -197,4 +180,3 @@ const Strategies = observer(() => {
 })
 
 export default Strategies
-
