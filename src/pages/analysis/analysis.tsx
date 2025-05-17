@@ -4,6 +4,7 @@ import { Localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
 import { useState, useEffect, useRef } from "react"
 import { useStore } from "@/hooks/useStore"
+import { DBOT_TABS } from "@/constants/bot-contents"
 import "./analysis.scss"
 
 const Analysis = observer(() => {
@@ -14,8 +15,8 @@ const Analysis = observer(() => {
 
   // Initialize the run panel when the component mounts
   useEffect(() => {
-    // Important: Set the active tab to CHART to ensure the run panel is initialized correctly
-    dashboard.setActiveTab("CHART")
+    // Set the active tab to ANALYSIS to ensure the run panel is initialized correctly
+    dashboard.setActiveTab(DBOT_TABS.ANALYSIS)
 
     // Force the run panel to be visible
     if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
@@ -47,17 +48,17 @@ const Analysis = observer(() => {
         }
       }
 
-      // For the toggle button - position on RIGHT side for desktop with increased right value
+      // For the toggle button - position on LEFT side for desktop
       const toggle = document.querySelector(".run-panel__toggle")
       if (toggle) {
         if (isDesktop) {
           toggle.setAttribute(
             "style",
-            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; right: 416px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
+            "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; left: -24px !important; top: 50% !important; transform: translateY(-50%) !important; z-index: 9999 !important; cursor: pointer !important; width: 24px !important; height: 40px !important; justify-content: center !important; align-items: center !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-right: 0 !important; border-radius: 4px 0 0 4px !important;"
           )
           
           // Also update the text content to show the correct arrow direction
-          toggle.textContent = "»"
+          toggle.textContent = "«"
         } else {
           // Mobile styling - position at the top center
           toggle.setAttribute(
