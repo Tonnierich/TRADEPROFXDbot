@@ -250,6 +250,108 @@ const StatisticsInfoModal = ({
   )
 }
 
+// Global toggle button manager
+const GlobalToggleManager = {
+  toggles: {},
+
+  // Create a toggle button for a specific tab
+  createToggle: (tabId, isDrawerOpen, toggleDrawerFn) => {
+    // Remove existing toggle if any
+    GlobalToggleManager.removeToggle(tabId)
+
+    // Create new toggle
+    const toggle = document.createElement("div")
+    toggle.id = `mobile-toggle-${tabId}`
+    toggle.className = "mobile-persistent-toggle"
+    toggle.setAttribute("data-tab", tabId)
+
+    // Set the arrow direction based on drawer state
+    toggle.innerHTML = isDrawerOpen ? "▼" : "▲"
+
+    // Add click handler
+    toggle.addEventListener("click", (e) => {
+      e.stopPropagation()
+      e.preventDefault()
+
+      if (typeof toggleDrawerFn === "function") {
+        toggleDrawerFn()
+
+        // Update the arrow direction
+        setTimeout(() => {
+          toggle.innerHTML = !isDrawerOpen ? "▼" : "▲"
+        }, 100)
+      }
+    })
+
+    // Style the toggle
+    toggle.style.cssText = `
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            position: fixed !important;
+            top: 180px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 10000 !important;
+            width: 80px !important;
+            height: 30px !important;
+            background-color: var(--general-main-1) !important;
+            border: 1px solid var(--border-normal) !important;
+            border-radius: 4px !important;
+            justify-content: center !important;
+            align-items: center !important;
+            cursor: pointer !important;
+            font-size: 18px !important;
+            font-weight: bold !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        `
+
+    // Add to the document body
+    document.body.appendChild(toggle)
+
+    // Store the toggle reference
+    GlobalToggleManager.toggles[tabId] = toggle
+
+    return toggle
+  },
+
+  // Remove a toggle button for a specific tab
+  removeToggle: (tabId) => {
+    const toggle = document.getElementById(`mobile-toggle-${tabId}`)
+    if (toggle) {
+      try {
+        document.body.removeChild(toggle)
+      } catch (e) {
+        console.log(`Toggle for ${tabId} not in DOM`)
+      }
+      delete GlobalToggleManager.toggles[tabId]
+    }
+  },
+
+  // Remove all toggle buttons
+  removeAllToggles: () => {
+    Object.keys(GlobalToggleManager.toggles).forEach((tabId) => {
+      GlobalToggleManager.removeToggle(tabId)
+    })
+  },
+
+  // Update a toggle button's state
+  updateToggle: (tabId, isDrawerOpen) => {
+    const toggle = document.getElementById(`mobile-toggle-${tabId}`)
+    if (toggle) {
+      toggle.innerHTML = isDrawerOpen ? "▼" : "▲"
+    }
+  },
+
+  // Ensure a toggle button is visible
+  ensureToggleVisible: (tabId) => {
+    const toggle = document.getElementById(`mobile-toggle-${tabId}`)
+    if (!toggle && GlobalToggleManager.toggles[tabId]) {
+      document.body.appendChild(GlobalToggleManager.toggles[tabId])
+    }
+  },
+}
+
 const RunPanel = observer(() => {
   const { run_panel, dashboard, transactions } = useStore()
   const { client } = useStore()
@@ -273,195 +375,61 @@ const RunPanel = observer(() => {
   const { total_payout, total_profit, total_stake, won_contracts, lost_contracts, number_of_runs } = statistics
   const { BOT_BUILDER, CHART, ANALYSIS } = DBOT_TABS
 
-  // Add state to track if we're in the Analysis tab
-  const [isAnalysisTab, setIsAnalysisTab] = React.useState(false)
-  // Add ref to track the persistent toggle button
-  const persistentToggleRef = React.useRef(null)
   // Add state to track if we're in a mobile view
   const isMobile = !isDesktop
+
   // Add state to track if we should force the drawer to stay open
   const [forceDrawerOpen, setForceDrawerOpen] = React.useState(false)
-  // Add ref to track the interval ID
-  const intervalRef = React.useRef(null)
 
-  // Function to create a persistent toggle button for mobile
-  const createPersistentToggle = () => {
-    // Remove any existing toggle button we created
-    const existingToggle = document.getElementById("analysis-persistent-toggle")
-    if (existingToggle) {
-      try {
-        document.body.removeChild(existingToggle)
-      } catch (e) {
-        console.log("Toggle button not in DOM")
-      }
+  // Add ref to track the last active tab
+  const lastActiveTabRef = React.useRef(active_tab)
+
+  // Add ref to track if we're currently running the bot
+  const isRunningRef = React.useRef(false)
+
+  // Function to ensure the drawer is properly positioned for mobile
+  const ensureMobileDrawerVisibility = React.useCallback(() => {
+    if (!isMobile) return
+
+    const drawerElement = document.querySelector(".dc-drawer")
+    if (drawerElement && is_drawer_open) {
+      drawerElement.setAttribute(
+        "style",
+        "transform: none !important; visibility: visible !important; opacity: 1 !important; transition: none !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important; z-index: 9999 !important;",
+      )
     }
 
-    // Create a new toggle button
-    const toggle = document.createElement("div")
-    toggle.id = "analysis-persistent-toggle"
-    toggle.className = "analysis-persistent-toggle"
+    // Also ensure the tabs are visible
+    const tabsList = document.querySelector(".dc-tabs__list")
+    if (tabsList) {
+      tabsList.setAttribute(
+        "style",
+        "display: flex !important; visibility: visible !important; opacity: 1 !important; z-index: 10000 !important;",
+      )
+    }
 
-    // Set the arrow direction based on drawer state
-    toggle.innerHTML = is_drawer_open ? "▼" : "▲"
-
-    // Add click handler to toggle the run panel
-    toggle.addEventListener("click", (e) => {
-      e.stopPropagation()
-      e.preventDefault()
-
-      // Toggle the drawer
-      toggleDrawer()
-
-      // Update the arrow direction
-      setTimeout(() => {
-        toggle.innerHTML = !is_drawer_open ? "▼" : "▲"
-      }, 100)
-
-      // Prevent the toggle from disappearing
-      setForceDrawerOpen(true)
-      setTimeout(() => setForceDrawerOpen(false), 500)
+    // Ensure each tab item is visible
+    const tabItems = document.querySelectorAll(".dc-tabs__item")
+    tabItems.forEach((item) => {
+      item.setAttribute(
+        "style",
+        "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important;",
+      )
     })
+  }, [isMobile, is_drawer_open])
 
-    // Style the toggle to match the existing one
-    toggle.style.cssText = `
-      display: flex !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      position: fixed !important;
-      top: 180px !important;
-      left: 50% !important;
-      transform: translateX(-50%) !important;
-      z-index: 10000 !important;
-      width: 60px !important;
-      height: 24px !important;
-      background-color: var(--general-main-1) !important;
-      border: 1px solid var(--border-normal) !important;
-      border-radius: 4px !important;
-      justify-content: center !important;
-      align-items: center !important;
-      cursor: pointer !important;
-      font-size: 16px !important;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    `
-
-    // Add to the document body
-    document.body.appendChild(toggle)
-    persistentToggleRef.current = toggle
-
-    return toggle
-  }
-
-  React.useEffect(() => {
-    onMount()
-    return () => onUnmount()
-  }, [onMount, onUnmount])
-
-  React.useEffect(() => {
-    // Check if we're in the Analysis tab
-    const isInAnalysisTab = active_tab === ANALYSIS
-    setIsAnalysisTab(isInAnalysisTab)
-
-    // Add a class to the body when in Analysis tab
-    if (isInAnalysisTab) {
-      document.body.classList.add("dbot-analysis-active")
-
-      // For mobile devices, create a persistent toggle
-      if (isMobile) {
-        createPersistentToggle()
-
-        // Set up an interval to ensure the toggle is always visible
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current)
-        }
-
-        intervalRef.current = setInterval(() => {
-          const existingToggle = document.getElementById("analysis-persistent-toggle")
-          if (!existingToggle && !forceDrawerOpen) {
-            createPersistentToggle()
-          } else if (existingToggle) {
-            // Update the arrow direction based on drawer state
-            existingToggle.innerHTML = is_drawer_open ? "▼" : "▲"
-          }
-        }, 300)
-
-        // Ensure the drawer is properly positioned for mobile
-        const ensureMobileDrawerVisibility = () => {
-          const drawerElement = document.querySelector(".dc-drawer")
-          if (drawerElement && is_drawer_open) {
-            drawerElement.setAttribute(
-              "style",
-              "transform: none !important; visibility: visible !important; opacity: 1 !important; transition: none !important;",
-            )
-          }
-        }
-
-        // Run immediately and after a delay
-        ensureMobileDrawerVisibility()
-        setTimeout(ensureMobileDrawerVisibility, 300)
-        setTimeout(ensureMobileDrawerVisibility, 1000)
-      }
-
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
-        }
-
-        // Remove the toggle button when leaving Analysis tab
-        const existingToggle = document.getElementById("analysis-persistent-toggle")
-        if (existingToggle) {
-          try {
-            document.body.removeChild(existingToggle)
-          } catch (e) {
-            console.log("Toggle button not in DOM during cleanup")
-          }
-        }
-        document.body.classList.remove("dbot-analysis-active")
-      }
-    } else {
-      document.body.classList.remove("dbot-analysis-active")
-
-      // Remove the toggle button when not in Analysis tab
-      const existingToggle = document.getElementById("analysis-persistent-toggle")
-      if (existingToggle) {
-        try {
-          document.body.removeChild(existingToggle)
-        } catch (e) {
-          console.log("Toggle button not in DOM during cleanup")
-        }
-      }
-
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
-
-    // Don't auto-close drawer on mobile when switching tabs
-    if (isMobile && isInAnalysisTab) {
-      // Keep drawer open in Analysis tab on mobile
-      if (!is_drawer_open) {
-        toggleDrawer(true)
-      }
-    }
-  }, [active_tab, isDesktop, toggleDrawer, is_drawer_open, ANALYSIS, isMobile, forceDrawerOpen])
-
-  // Custom toggle function to handle Analysis tab differently
-  const handleToggleDrawer = () => {
-    // If we're in the Analysis tab on mobile, handle specially
-    if (isAnalysisTab && isMobile) {
+  // Custom toggle function to handle mobile differently
+  const handleToggleDrawer = React.useCallback(() => {
+    if (isMobile) {
       // Store the current state of the drawer
       const wasOpen = is_drawer_open
 
       // Call the original toggleDrawer function
       toggleDrawer()
 
-      // Force the persistent toggle to update
+      // Update the toggle button
       setTimeout(() => {
-        const persistentToggle = document.getElementById("analysis-persistent-toggle")
-        if (persistentToggle) {
-          persistentToggle.innerHTML = wasOpen ? "▲" : "▼" // Update arrow direction
-        }
+        GlobalToggleManager.updateToggle(active_tab, !wasOpen)
 
         // If we're closing the drawer, make sure it stays visible but collapsed
         if (wasOpen) {
@@ -469,16 +437,121 @@ const RunPanel = observer(() => {
           if (drawerElement) {
             drawerElement.setAttribute(
               "style",
-              "transform: translateY(80%) !important; visibility: visible !important; opacity: 1 !important; transition: transform 0.3s ease !important;",
+              "transform: translateY(80%) !important; visibility: visible !important; opacity: 1 !important; transition: transform 0.3s ease !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important; z-index: 9999 !important;",
             )
           }
+        } else {
+          // If we're opening the drawer, ensure it's fully visible
+          ensureMobileDrawerVisibility()
         }
       }, 50)
+
+      // Prevent the toggle from disappearing
+      setForceDrawerOpen(true)
+      setTimeout(() => setForceDrawerOpen(false), 500)
     } else {
-      // For other tabs or desktop, use normal toggle
+      // For desktop, use normal toggle
       toggleDrawer()
     }
-  }
+  }, [isMobile, is_drawer_open, toggleDrawer, active_tab, ensureMobileDrawerVisibility])
+
+  // Effect to handle component mount/unmount
+  React.useEffect(() => {
+    onMount()
+
+    // Add global class for mobile
+    if (isMobile) {
+      document.body.classList.add("dbot-mobile")
+    }
+
+    return () => {
+      onUnmount()
+
+      // Clean up
+      if (isMobile) {
+        document.body.classList.remove("dbot-mobile")
+        GlobalToggleManager.removeAllToggles()
+      }
+    }
+  }, [onMount, onUnmount, isMobile])
+
+  // Effect to handle tab changes
+  React.useEffect(() => {
+    // Track if the tab has changed
+    const tabChanged = lastActiveTabRef.current !== active_tab
+    lastActiveTabRef.current = active_tab
+
+    // Add appropriate classes based on active tab
+    document.body.classList.remove("dbot-bot-builder-active", "dbot-chart-active", "dbot-analysis-active")
+
+    if (active_tab === BOT_BUILDER) {
+      document.body.classList.add("dbot-bot-builder-active")
+    } else if (active_tab === CHART) {
+      document.body.classList.add("dbot-chart-active")
+    } else if (active_tab === ANALYSIS) {
+      document.body.classList.add("dbot-analysis-active")
+    }
+
+    // For mobile devices, handle the toggle button
+    if (isMobile) {
+      // If tab changed, create a new toggle for this tab
+      if (tabChanged) {
+        // Remove any existing toggles
+        GlobalToggleManager.removeAllToggles()
+
+        // Create a new toggle for this tab
+        if ([BOT_BUILDER, CHART, ANALYSIS].includes(active_tab)) {
+          GlobalToggleManager.createToggle(active_tab, is_drawer_open, handleToggleDrawer)
+        }
+      }
+
+      // Ensure the drawer is properly positioned
+      if ([BOT_BUILDER, CHART, ANALYSIS].includes(active_tab)) {
+        // Keep drawer open on mobile
+        if (!is_drawer_open && !isRunningRef.current) {
+          toggleDrawer(true)
+        }
+
+        // Ensure drawer visibility
+        ensureMobileDrawerVisibility()
+        setTimeout(ensureMobileDrawerVisibility, 300)
+        setTimeout(ensureMobileDrawerVisibility, 1000)
+      }
+    }
+  }, [
+    active_tab,
+    BOT_BUILDER,
+    CHART,
+    ANALYSIS,
+    isMobile,
+    is_drawer_open,
+    toggleDrawer,
+    handleToggleDrawer,
+    ensureMobileDrawerVisibility,
+  ])
+
+  // Effect to handle drawer state changes
+  React.useEffect(() => {
+    if (isMobile) {
+      // Update the toggle button
+      GlobalToggleManager.updateToggle(active_tab, is_drawer_open)
+
+      // Ensure drawer visibility when open
+      if (is_drawer_open) {
+        ensureMobileDrawerVisibility()
+      }
+    }
+  }, [is_drawer_open, isMobile, active_tab, ensureMobileDrawerVisibility])
+
+  // Custom run button click handler to track when the bot is running
+  const handleRunButtonClick = React.useCallback(() => {
+    isRunningRef.current = true
+
+    // Call the original handler
+    if (typeof onRunButtonClick === "function") {
+      onRunButtonClick()
+    }
+  }, [onRunButtonClick])
 
   const content = (
     <DrawerContent
@@ -509,7 +582,7 @@ const RunPanel = observer(() => {
     />
   )
 
-  // Modified line to include ANALYSIS tab using the constant, not the string
+  // Show run panel for BOT_BUILDER, CHART, and ANALYSIS tabs
   const show_run_panel = [BOT_BUILDER, CHART, ANALYSIS].includes(active_tab) || active_tour
   if ((!show_run_panel && isDesktop) || active_tour === "bot_builder") return null
 
@@ -521,8 +594,10 @@ const RunPanel = observer(() => {
           className={classNames("run-panel", {
             "run-panel__container": isDesktop,
             "run-panel__container--tour-active": isDesktop && active_tour,
-            "run-panel__container--analysis": isDesktop && active_tab === ANALYSIS,
-            "run-panel__container--mobile-analysis": !isDesktop && active_tab === ANALYSIS,
+            "run-panel__container--analysis": active_tab === ANALYSIS,
+            "run-panel__container--bot-builder": active_tab === BOT_BUILDER,
+            "run-panel__container--chart": active_tab === CHART,
+            "run-panel__container--mobile": isMobile,
           })}
           contentClassName="run-panel__content"
           header={header}
@@ -536,9 +611,9 @@ const RunPanel = observer(() => {
         </Drawer>
         {!isDesktop && <MobileDrawerFooter />}
       </div>
-      <SelfExclusion onRunButtonClick={onRunButtonClick} />
+      <SelfExclusion onRunButtonClick={handleRunButtonClick} />
       <StatisticsInfoModal
-        is_mobile={!isDesktop}
+        is_mobile={isMobile}
         is_statistics_info_modal_open={is_statistics_info_modal_open}
         toggleStatisticsInfoModal={toggleStatisticsInfoModal}
       />
