@@ -29,6 +29,15 @@
             // Special styling for analysis tab
             z-index: 9999 !important;
         }
+        
+        &--mobile-analysis {
+            // Special styling for mobile analysis tab
+            z-index: 9999 !important;
+            position: fixed !important;
+            bottom: 0 !important;
+            height: auto !important;
+            max-height: 50vh !important;
+        }
     }
 
     &__tile {
@@ -466,6 +475,17 @@
             visibility: visible !important;
             opacity: 1 !important;
             transition: none !important;
+            
+            @include mobile-or-tablet-screen {
+                position: fixed !important;
+                bottom: 0 !important;
+                left: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+                max-height: 50vh !important;
+                border-top: 1px solid var(--border-normal) !important;
+                z-index: 9999 !important;
+            }
         }
         
         /* Make sure the toggle button is visible and positioned correctly */
@@ -517,6 +537,34 @@
             cursor: pointer !important;
             font-size: 16px !important;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+            
+            /* Make it more tappable on mobile */
+            @include mobile-or-tablet-screen {
+                width: 80px !important;
+                height: 30px !important;
+                font-size: 18px !important;
+                font-weight: bold !important;
+            }
+        }
+        
+        /* Fix for mobile tabs */
+        .dc-tabs__list {
+            @include mobile-or-tablet-screen {
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                z-index: 10000 !important;
+            }
+        }
+        
+        /* Fix for mobile tab items */
+        .dc-tabs__item {
+            @include mobile-or-tablet-screen {
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                pointer-events: auto !important;
+            }
         }
     }
 }
