@@ -4,35 +4,45 @@ import { observer } from "mobx-react-lite"
 import { Localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
 import { useState, useEffect, useRef } from "react"
+import { useStore } from "@/hooks/useStore"
 import "./strategies.scss"
 
 const Strategies = observer(() => {
   const { isDesktop } = useDevice()
+  const { run_panel, dashboard } = useStore()
   const [showTradeProfXTool, setShowTradeProfXTool] = useState(false)
   const [activeToolUrl, setActiveToolUrl] = useState("https://v0-tradeprofxaccumulator.vercel.app/")
   const containerRef = useRef(null)
+
+  // Get the toggleDrawer function from the run_panel store
+  const { toggleDrawer, is_drawer_open } = run_panel
+
+  // Get the active_tab and set_active_tab from dashboard store
+  const { active_tab, setActiveTab } = dashboard
 
   const toggleTradeProfXTool = (url) => {
     if (url) {
       setActiveToolUrl(url)
       setShowTradeProfXTool(true)
+
+      // When opening a tool, ensure the run panel is visible
+      if (isDesktop && !is_drawer_open) {
+        toggleDrawer(true)
+      }
     } else {
       setShowTradeProfXTool(!showTradeProfXTool)
     }
   }
 
-  // Add class to body when tool is shown to adjust layout
+  // When the component mounts or when showTradeProfXTool changes,
+  // update the active tab in the dashboard store to enable the run panel
   useEffect(() => {
     if (showTradeProfXTool) {
-      document.body.classList.add("show-summary-panel")
-    } else {
-      document.body.classList.remove("show-summary-panel")
+      // Set the active tab to CHART or another value that enables the run panel
+      // This should match one of the values in DBOT_TABS that shows the run panel
+      setActiveTab("CHART")
     }
-
-    return () => {
-      document.body.classList.remove("show-summary-panel")
-    }
-  }, [showTradeProfXTool])
+  }, [showTradeProfXTool, setActiveTab])
 
   return (
     <div className="strategies">
