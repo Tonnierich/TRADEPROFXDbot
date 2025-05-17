@@ -1,104 +1,179 @@
-.run-panel {
-    position: relative;
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
+.analysis-tools {
+    display: flex;
+    flex-direction: column;
     height: 100%;
     width: 100%;
-    
-    &__container {
-        position: relative;
-        height: 100%;
-        width: 100%;
-        transition: transform 0.25s ease;
-        
-        &--active {
-            display: block;
-        }
-        
-        &--tour {
-            position: absolute;
-            top: 0;
-            right: 0;
-            z-index: 10;
-        }
+    background-color: var(--general-main-1);
+    overflow: hidden;
+    position: relative;
+
+    // When the tool is shown, make room for the run panel
+    &--with-panel {
+        width: calc(100% - 366px) !important;
+        margin-right: 366px !important;
     }
-    
-    &__content {
-        height: 100%;
-        width: 100%;
-        
-        &--active {
-            display: block;
-        }
-    }
-    
-    &__toggle {
-        position: absolute;
-        top: 50%;
-        left: -24px;
-        width: 24px;
-        height: 40px;
+
+    &__compact-header {
         display: flex;
-        align-items: center;
-        justify-content: center;
-        background-color: var(--general-main-1);
-        color: var(--text-prominent);
-        border: 1px solid var(--border-normal);
-        border-right: 0;
-        border-radius: 4px 0 0 4px;
-        cursor: pointer;
-        transform: translateY(-50%);
-        z-index: 10;
-        
-        &:hover {
-            background-color: var(--general-hover);
-        }
-    }
-    
-    &__tabs {
-        height: 100%;
-        
-        .dc-tabs {
-            &__list {
-                background-color: var(--general-main-1);
-                border-bottom: 1px solid var(--general-section-1);
-            }
-            
-            &__item {
-                padding: 8px 16px;
-                
-                &--active {
-                    background-color: var(--general-active);
-                }
-            }
-            
-            &__content {
-                height: calc(100% - 40px);
-                padding: 0;
-            }
-        }
-    }
-    
-    &__stat {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        width: 100%;
-        background-color: var(--general-main-1);
-        border-top: 1px solid var(--general-section-1);
-        z-index: 1;
-        
-        &--active-tour {
-            position: relative;
-        }
-        
-        &--is-open {
-            width: 100%;
-        }
-    }
-    
-    &__header, &__footer {
-        padding: 8px 16px;
-        display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        background-color: var(--general-section-1);
+        border-bottom: 1px solid var(--general-section-3);
+        width: 100%;
+        z-index: 10;
+    }
+
+    &__title {
+        font-size: 1.6rem;
+        font-weight: bold;
+        color: var(--text-prominent);
+        margin: 0;
+    }
+
+    &__toggle-button {
+        background-color: var(--brand-red-coral);
+        color: var(--text-colored-background);
+        border: none;
+        border-radius: 0.4rem;
+        padding: 0.4rem 0.8rem;
+        font-size: 1.2rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+
+        &:hover {
+            background-color: var(--brand-red-coral-hover);
+        }
+    }
+
+    &__content-wrapper {
+        display: flex;
+        width: 100%;
+        height: calc(100vh - 180px);
+        position: relative;
+    }
+
+    &__iframe-container {
+        width: 100%;
+        height: 100%;
+        padding: 1rem;
+        overflow: hidden;
+        position: relative;
+    }
+
+    &__iframe {
+        width: 100%;
+        height: 100%;
+        border: 1px solid var(--general-section-3);
+        border-radius: 0.4rem;
+        background-color: var(--general-section-1);
+        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.1);
+    }
+
+    &__card {
+        margin: 1rem auto;
+        background-color: var(--general-section-1);
+        border-radius: 0.4rem;
+        box-shadow: 0 0.2rem 0.4rem rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+        max-width: 600px;
+
+        &-header {
+            padding: 1.2rem 1.6rem;
+            background-color: var(--general-section-2);
+            border-bottom: 1px solid var(--general-section-3);
+        }
+
+        &-title {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--text-prominent);
+            margin: 0;
+        }
+
+        &-content {
+            padding: 1.6rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.6rem;
+
+            p {
+                font-size: 1.2rem;
+                color: var(--text-general);
+                line-height: 1.5;
+                margin: 0;
+            }
+        }
+    }
+
+    &__button {
+        background-color: var(--brand-red-coral);
+        color: var(--text-colored-background);
+        border: none;
+        border-radius: 0.4rem;
+        padding: 0.8rem 1.6rem;
+        font-size: 1.2rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        align-self: flex-start;
+
+        &:hover {
+            background-color: var(--brand-red-coral-hover);
+        }
+    }
+}
+
+/* Global styles for the dbot analysis page */
+:global {
+    body.dbot-analysis-active {
+        /* Ensure the run panel is visible */
+        .run-panel__container {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            z-index: 9999 !important;
+            position: fixed !important;
+            top: 104px !important; /* Adjust based on your header height */
+            right: 0 !important;
+            width: 366px !important;
+            height: calc(100vh - 104px) !important;
+        }
+        
+        /* Make sure the drawer is visible */
+        .dc-drawer {
+            transform: none !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            transition: none !important;
+        }
+        
+        /* Make sure the toggle button is visible and positioned correctly */
+        .run-panel__toggle {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: auto !important;
+            position: absolute !important;
+            left: -24px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            z-index: 9999 !important;
+            cursor: pointer !important;
+        }
+        
+        /* Make sure the Run button is visible and clickable */
+        .header__run-button, 
+        [data-testid="dt_run_button"],
+        button[aria-label="Run"] {
+            z-index: 9999 !important;
+            position: relative !important;
+            pointer-events: auto !important;
+        }
     }
 }
