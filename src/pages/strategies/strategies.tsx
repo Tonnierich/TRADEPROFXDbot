@@ -12,14 +12,21 @@ const Strategies = observer(() => {
   const [iframeHeight, setIframeHeight] = useState("100%")
   const [activeToolUrl, setActiveToolUrl] = useState("https://v0-tradeprofxaccumulator.vercel.app/")
   const containerRef = useRef(null)
+  const [showSummary, setShowSummary] = useState(false)
 
   const toggleTradeProfXTool = (url) => {
     if (url) {
       setActiveToolUrl(url)
       setShowTradeProfXTool(true)
+      // Reset summary view when changing tools
+      setShowSummary(false)
     } else {
       setShowTradeProfXTool(!showTradeProfXTool)
     }
+  }
+
+  const toggleSummary = () => {
+    setShowSummary(!showSummary)
   }
 
   // Calculate and set the iframe height when the tool is shown
@@ -70,26 +77,79 @@ const Strategies = observer(() => {
                 >
                   <Localize i18n_default_text="Analysis Tool" />
                 </button>
+                <button
+                  className={`strategies__tool-toggle ${showSummary ? "strategies__tool-toggle--active" : ""}`}
+                  onClick={toggleSummary}
+                >
+                  <Localize i18n_default_text={showSummary ? "Hide Summary" : "Show Summary"} />
+                </button>
                 <button className="strategies__tool-back" onClick={() => toggleTradeProfXTool()}>
                   <Localize i18n_default_text="Back to Strategies" />
                 </button>
               </div>
             </div>
-            <iframe
-              src={activeToolUrl}
-              className="strategies__tool-iframe"
-              title="Trading Tool"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{
-                display: "block",
-                width: "100%",
-                height: iframeHeight,
-                border: "none",
-                overflow: "hidden",
-              }}
-            ></iframe>
+            <div className={`strategies__tool-content ${showSummary ? "strategies__tool-content--with-summary" : ""}`}>
+              <iframe
+                src={activeToolUrl}
+                className="strategies__tool-iframe"
+                title="Trading Tool"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{
+                  display: "block",
+                  width: "100%",
+                  height: showSummary ? "calc(100% - 220px)" : "100%",
+                  border: "none",
+                  overflow: "hidden",
+                }}
+              ></iframe>
+              {showSummary && (
+                <div className="strategies__tool-summary">
+                  <div className="strategies__tool-summary-tabs">
+                    <button className="strategies__tool-summary-tab strategies__tool-summary-tab--active">
+                      <Localize i18n_default_text="Summary" />
+                    </button>
+                    <button className="strategies__tool-summary-tab">
+                      <Localize i18n_default_text="Transactions" />
+                    </button>
+                    <button className="strategies__tool-summary-tab">
+                      <Localize i18n_default_text="Journal" />
+                    </button>
+                  </div>
+                  <div className="strategies__tool-summary-content">
+                    <div className="strategies__tool-summary-message">
+                      <p>
+                        <Localize i18n_default_text="When you're ready to trade, hit" /> <strong>Run</strong>.
+                      </p>
+                      <p>
+                        <Localize i18n_default_text="You'll be able to track your bot's performance here." />
+                      </p>
+                    </div>
+                    <div className="strategies__tool-summary-stats">
+                      <div className="strategies__tool-summary-stat">
+                        <span className="strategies__tool-summary-stat-label">
+                          <Localize i18n_default_text="Total stake" />
+                        </span>
+                        <span className="strategies__tool-summary-stat-value">0.00 USD</span>
+                      </div>
+                      <div className="strategies__tool-summary-stat">
+                        <span className="strategies__tool-summary-stat-label">
+                          <Localize i18n_default_text="Total payout" />
+                        </span>
+                        <span className="strategies__tool-summary-stat-value">0.00 USD</span>
+                      </div>
+                      <div className="strategies__tool-summary-stat">
+                        <span className="strategies__tool-summary-stat-label">
+                          <Localize i18n_default_text="No. of runs" />
+                        </span>
+                        <span className="strategies__tool-summary-stat-value">0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : (
