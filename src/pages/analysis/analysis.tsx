@@ -7,23 +7,19 @@ import "./analysis.scss"
 
 const Analysis = observer(() => {
   const [showTool, setShowTool] = useState(true)
-  const [iframeHeight, setIframeHeight] = useState(500)
 
-  // Adjust iframe height based on window size
+  // Add class to body when tool is shown to adjust layout
   useEffect(() => {
-    const handleResize = () => {
-      // Make sure the iframe doesn't take up too much vertical space
-      const maxHeight = window.innerHeight * 0.6
-      setIframeHeight(Math.min(500, maxHeight))
+    if (showTool) {
+      document.body.classList.add("show-summary-panel")
+    } else {
+      document.body.classList.remove("show-summary-panel")
     }
-
-    window.addEventListener("resize", handleResize)
-    handleResize() // Set initial height
 
     return () => {
-      window.removeEventListener("resize", handleResize)
+      document.body.classList.remove("show-summary-panel")
     }
-  }, [])
+  }, [showTool])
 
   const toggleTool = () => {
     setShowTool(!showTool)
@@ -42,7 +38,7 @@ const Analysis = observer(() => {
 
       {showTool ? (
         <div className="analysis-tools__centered-container">
-          <div className="analysis-tools__iframe-wrapper" style={{ height: `${iframeHeight}px` }}>
+          <div className="analysis-tools__iframe-wrapper">
             <iframe
               src="https://v0-convert-to-react-eta.vercel.app/"
               className="analysis-tools__iframe"
