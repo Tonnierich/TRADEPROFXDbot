@@ -36,9 +36,9 @@ const Analysis = observer(() => {
       document.body.classList.add("dbot-analysis-mobile")
     }
 
-    // Store the original active tab to restore it later if needed
-    const originalActiveTab = dashboard.active_tab;
-    console.log("Original active tab:", originalActiveTab);
+    // IMPORTANT: Set the active tab to ANALYSIS, not BOT_BUILDER
+    dashboard.setActiveTab(DBOT_TABS.ANALYSIS);
+    console.log("Set active tab to ANALYSIS");
 
     // Set up an interval to keep the active tab as ANALYSIS
     const keepAnalysisActiveInterval = setInterval(() => {
