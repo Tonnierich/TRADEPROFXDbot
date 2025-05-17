@@ -205,3 +205,20 @@
         /* Mobile specific styles remain the same */
     }
 }
+.dbot-permanent-toggle {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  position: fixed !important;
+  z-index: 10000 !important;
+  width: 60px !important;
+  height: 24px !important;
+  background-color: var(--general-main-1) !important;
+  border: 1px solid var(--border-normal) !important;
+  border-radius: 4px !important;
+  justify-content: center !important;
+  align-items: center !important;
+  cursor: pointer !important;
+  font-size: 16px !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
