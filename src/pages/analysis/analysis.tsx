@@ -62,12 +62,12 @@ const Analysis = observer(() => {
             // Mobile styling
             runPanelContainer.setAttribute(
               "style",
-              "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important;"
+              "display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; z-index: 9999 !important; position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; height: auto !important; max-height: 50vh !important; border-top: 1px solid var(--border-normal) !important;"
             )
           }
         }
 
-        // For the toggle button - position on LEFT side for desktop
+        // For the toggle button - position on LEFT side for desktop, TOP CENTER for mobile
         const toggle = document.querySelector(".run-panel__toggle")
         if (toggle) {
           if (isDesktop) {
@@ -85,11 +85,58 @@ const Analysis = observer(() => {
               "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important;"
             )
           }
+        } else if (isMobile) {
+          // If toggle doesn't exist on mobile, create one
+          if (runPanelContainer) {
+            const newToggle = document.createElement('div');
+            newToggle.className = 'run-panel__toggle';
+            newToggle.textContent = '«';
+            newToggle.onclick = () => run_panel.toggleDrawer();
+            
+            newToggle.setAttribute(
+              "style",
+              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important;"
+            );
+            
+            runPanelContainer.appendChild(newToggle);
+          }
         }
       }
 
       // Run once after a delay
       setTimeout(ensureRunPanelVisibility, 500);
+      
+      // For mobile, set up an interval to keep checking for the toggle button
+      if (isMobile) {
+        const mobileToggleInterval = setInterval(() => {
+          const toggle = document.querySelector(".run-panel__toggle");
+          if (!toggle) {
+            console.log("Mobile toggle not found, creating one");
+            const runPanelContainer = document.querySelector(".run-panel__container");
+            if (runPanelContainer) {
+              const newToggle = document.createElement('div');
+              newToggle.className = 'run-panel__toggle';
+              newToggle.textContent = '«';
+              newToggle.onclick = () => run_panel.toggleDrawer();
+              
+              newToggle.setAttribute(
+                "style",
+                "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important;"
+              );
+              
+              runPanelContainer.appendChild(newToggle);
+            }
+          } else {
+            // Make sure the toggle is properly styled for mobile
+            toggle.setAttribute(
+              "style",
+              "display: flex !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; position: absolute !important; top: -24px !important; left: 50% !important; transform: translateX(-50%) rotate(90deg) !important; z-index: 9999 !important; cursor: pointer !important; background-color: var(--general-main-1) !important; border: 1px solid var(--border-normal) !important; border-bottom: 0 !important; border-radius: 4px 4px 0 0 !important; width: 40px !important; height: 24px !important; justify-content: center !important; align-items: center !important;"
+            );
+          }
+        }, 1000);
+        
+        return () => clearInterval(mobileToggleInterval);
+      }
     };
 
     // Initialize run panel after the iframe has had time to load
