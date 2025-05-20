@@ -254,6 +254,7 @@
     &-actions {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
     }
     
     &-switch {
@@ -267,6 +268,7 @@
       cursor: pointer;
       transition: all 0.3s ease;
       margin-right: 0.8rem;
+      margin-bottom: 0.5rem;
       
       &:hover {
         background-color: #333333;
@@ -351,3 +353,4 @@
     }
   }
 }
+
