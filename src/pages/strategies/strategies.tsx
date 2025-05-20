@@ -4,22 +4,34 @@ import { observer } from "mobx-react-lite"
 import { Localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
 import { useState, useEffect, useRef } from "react"
+import { useStore } from "@/hooks/useStore"
 import "./strategies.scss"
 
 const Strategies = observer(() => {
   const { isDesktop } = useDevice()
+  const { run_panel, dashboard } = useStore()
   const [showTradeProfXTool, setShowTradeProfXTool] = useState(false)
   const [activeToolUrl, setActiveToolUrl] = useState("https://v0-tradeprofxaccumulator.vercel.app/")
   const containerRef = useRef(null)
 
-  const toggleTradeProfXTool = (url) => {
-    if (url) {
-      setActiveToolUrl(url)
-      setShowTradeProfXTool(true)
-    } else {
-      setShowTradeProfXTool(!showTradeProfXTool)
+  // Initialize the run panel when a tool is shown
+  useEffect(() => {
+    if (showTradeProfXTool && isDesktop) {
+      // Set the active tab to CHART to ensure the run panel is initialized correctly
+      dashboard.setActiveTab("CHART")
+
+      // Make sure the run panel is visible by toggling the drawer open
+      if (!run_panel.is_drawer_open && typeof run_panel.toggleDrawer === "function") {
+        run_panel.toggleDrawer(true)
+      }
+
+      // Make sure the run panel wrapper is visible
+      const runPanelElement = document.querySelector(".main__run-strategy-wrapper")
+      if (runPanelElement) {
+        runPanelElement.classList.remove("hidden")
+      }
     }
-  }
+  }, [showTradeProfXTool, dashboard, run_panel, isDesktop])
 
   // Add class to body when tool is shown to adjust layout
   useEffect(() => {
@@ -34,15 +46,28 @@ const Strategies = observer(() => {
     }
   }, [showTradeProfXTool])
 
+  const toggleTradeProfXTool = (url) => {
+    if (url) {
+      setActiveToolUrl(url)
+      setShowTradeProfXTool(true)
+    } else {
+      setShowTradeProfXTool(!showTradeProfXTool)
+    }
+  }
+
   return (
-    <div className="strategies">
+    <div className="strategies" ref={containerRef}>
       {showTradeProfXTool ? (
-        <div className="strategies__tool-container" ref={containerRef}>
+        <div className="strategies__tool-container">
           <div className="strategies__tool-header">
             <h2 className="strategies__tool-title">
               <Localize
                 i18n_default_text={
-                  activeToolUrl.includes("tradeprofxaccumulator") ? "ALL IN ONE TRADEPROFX TOOL" : "DERIV ANALYSIS TOOL"
+                  activeToolUrl.includes("tradeprofxaccumulator")
+                    ? "ALL IN ONE TRADEPROFX TOOL"
+                    : activeToolUrl.includes("deriv-token-and-bots")
+                      ? "COMBINATION EVEN/ODD/RISE/FALL BOT"
+                      : "DERIV ANALYSIS TOOL"
                 }
               />
             </h2>
@@ -58,6 +83,12 @@ const Strategies = observer(() => {
                 onClick={() => setActiveToolUrl("https://v0-derivanalysistool.vercel.app/")}
               >
                 <Localize i18n_default_text="Analysis Tool" />
+              </button>
+              <button
+                className={`strategies__tool-switch ${activeToolUrl.includes("deriv-token-and-bots") ? "strategies__tool-switch--active" : ""}`}
+                onClick={() => setActiveToolUrl("https://v0-deriv-token-and-bots.vercel.app/")}
+              >
+                <Localize i18n_default_text="Combination Bot" />
               </button>
               <button className="strategies__tool-back" onClick={() => toggleTradeProfXTool()}>
                 <Localize i18n_default_text="Back to Strategies" />
@@ -170,6 +201,47 @@ const Strategies = observer(() => {
                     </button>
                   </div>
                 </div>
+
+                {/* New Combination Bot Card */}
+                <div className="strategies__card strategies__card--featured">
+                  <div className="strategies__card-header">
+                    <h4 className="strategies__card-title">
+                      <Localize i18n_default_text="COMBINATION EVEN/ODD/RISE/FALL BOT" />
+                    </h4>
+                    <span className="strategies__card-tag strategies__card-tag--intermediate">
+                      <Localize i18n_default_text="Intermediate" />
+                    </span>
+                  </div>
+                  <div className="strategies__card-content">
+                    <p>
+                      <Localize i18n_default_text="Powerful trading bot that combines Even/Odd and Rise/Fall strategies with API token integration for automated trading on Deriv." />
+                    </p>
+                    <div className="strategies__card-stats">
+                      <div className="strategies__card-stat">
+                        <span className="strategies__card-stat-label">
+                          <Localize i18n_default_text="Features" />
+                        </span>
+                        <span className="strategies__card-stat-value">
+                          <Localize i18n_default_text="API Integration, Multiple Strategies" />
+                        </span>
+                      </div>
+                      <div className="strategies__card-stat">
+                        <span className="strategies__card-stat-label">
+                          <Localize i18n_default_text="Compatibility" />
+                        </span>
+                        <span className="strategies__card-stat-value">
+                          <Localize i18n_default_text="Binary Options" />
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      className="strategies__button strategies__button--primary"
+                      onClick={() => toggleTradeProfXTool("https://v0-deriv-token-and-bots.vercel.app/")}
+                    >
+                      <Localize i18n_default_text="Open Combination Bot" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -180,4 +252,3 @@ const Strategies = observer(() => {
 })
 
 export default Strategies
-
