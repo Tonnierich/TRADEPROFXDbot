@@ -7,18 +7,33 @@ import { useStore } from "@/hooks/useStore"
 import { DBOT_TABS } from "@/constants/bot-contents"
 import "./analysis.scss"
 
+// Define the available analysis tools
+const ANALYSIS_TOOLS = {
+  TRADEPROFX: {
+    name: "TRADEPROFX Analysis",
+    url: "https://v0-convert-to-react-eta.vercel.app/",
+    description: "Advanced trading analysis tool with real-time market data and powerful indicators.",
+  },
+  EVEN_ODD_RISE_FALL: {
+    name: "Even/Odd $Rise Fall",
+    url: "https://v0-deriv-analysis-tool-1u.vercel.app/",
+    description: "Analyze even/odd patterns and rise/fall predictions for better trading decisions.",
+  },
+}
+
 const Analysis = observer(() => {
   const { isDesktop, isMobile } = useDevice()
   const { run_panel, dashboard } = useStore()
   const [showTool, setShowTool] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedTool, setSelectedTool] = useState("TRADEPROFX")
   const containerRef = useRef(null)
   const iframeRef = useRef(null)
 
   // Handle iframe loading
   const handleIframeLoad = () => {
     setIsLoading(false)
-    console.log("Analysis iframe loaded successfully")
+    console.log(`${ANALYSIS_TOOLS[selectedTool].name} iframe loaded successfully`)
   }
 
   // Initialize the run panel when the component mounts
@@ -45,8 +60,17 @@ const Analysis = observer(() => {
     }
   }, [dashboard, run_panel, isDesktop, isMobile, DBOT_TABS.ANALYSIS])
 
+  // Reset loading state when tool changes
+  useEffect(() => {
+    setIsLoading(true)
+  }, [selectedTool])
+
   const toggleTool = () => {
     setShowTool(!showTool)
+  }
+
+  const switchTool = (toolKey) => {
+    setSelectedTool(toolKey)
   }
 
   return (
@@ -58,9 +82,24 @@ const Analysis = observer(() => {
         <h2 className="analysis-tools__title">
           <Localize i18n_default_text="Analysis Tools" />
         </h2>
-        <button className="analysis-tools__toggle-button" onClick={toggleTool}>
-          <Localize i18n_default_text={showTool ? "Hide Tool" : "Show Tool"} />
-        </button>
+        <div className="analysis-tools__header-actions">
+          {showTool && (
+            <div className="analysis-tools__tool-switcher">
+              {Object.keys(ANALYSIS_TOOLS).map((toolKey) => (
+                <button
+                  key={toolKey}
+                  className={`analysis-tools__tool-switch ${selectedTool === toolKey ? "analysis-tools__tool-switch--active" : ""}`}
+                  onClick={() => switchTool(toolKey)}
+                >
+                  <Localize i18n_default_text={ANALYSIS_TOOLS[toolKey].name} />
+                </button>
+              ))}
+            </div>
+          )}
+          <button className="analysis-tools__toggle-button" onClick={toggleTool}>
+            <Localize i18n_default_text={showTool ? "Hide Tool" : "Show Tool"} />
+          </button>
+        </div>
       </div>
 
       {showTool ? (
@@ -68,15 +107,15 @@ const Analysis = observer(() => {
           {isLoading && (
             <div className="analysis-tools__loading">
               <div className="analysis-tools__loading-spinner"></div>
-              <p>Loading analysis tool...</p>
+              <p>Loading {ANALYSIS_TOOLS[selectedTool].name}...</p>
             </div>
           )}
           <div className="analysis-tools__iframe-container">
             <iframe
               ref={iframeRef}
-              src="https://v0-convert-to-react-eta.vercel.app/"
+              src={ANALYSIS_TOOLS[selectedTool].url}
               className="analysis-tools__iframe"
-              title="TRADEPROFX Analysis Tool"
+              title={ANALYSIS_TOOLS[selectedTool].name}
               allow="fullscreen"
               scrolling="no"
               onLoad={handleIframeLoad}
