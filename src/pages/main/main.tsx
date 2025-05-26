@@ -23,7 +23,7 @@ import {
   LabelPairedObjectsColumnCaptionRegularIcon,
   LabelPairedPuzzlePieceTwoCaptionBoldIcon,
 } from "@deriv/quill-icons/LabelPaired"
-import { LegacyGuide1pxIcon, LegacyIndicatorsIcon } from "@deriv/quill-icons/Legacy"
+import { LegacyGuide1pxIcon, LegacyIndicatorsIcon, LegacyTemplatesIcon } from "@deriv/quill-icons/Legacy"
 import { requestOidcAuthentication } from "@deriv-com/auth-client"
 import { Localize, localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
@@ -31,19 +31,20 @@ import RunPanel from "../../components/run-panel"
 import ChartModal from "../chart/chart-modal"
 import Dashboard from "../dashboard"
 import RunStrategy from "../dashboard/run-strategy"
+import Strategies from "../strategies/strategies"
 import "./main.scss"
 
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
-const AnalysisTools = lazy(() => import("../analysis/analysis"))
-const FreeBots = lazy(() => import("../free-bots/free-bots")) // Import the correct FreeBots component
+const Analysis = lazy(() => import("../analysis/analysis"))
+const FreeBots = lazy(() => import("../free-bots")) // Add FreeBots import
 
 // Declare Blockly
 declare var Blockly: any
 
 const AppWrapper = observer(() => {
   const { connectionStatus } = useApiBase()
-  const { dashboard, load_modal, run_panel, quick_strategy, summary_card } = useStore()
+  const { dashboard, load_modal, run_panel, quick_strategy, summary_card, client } = useStore()
   const {
     active_tab,
     active_tour,
@@ -63,58 +64,88 @@ const AppWrapper = observer(() => {
     onCloseDialog,
     onOkButtonClick,
     stopBot,
-    toggleDrawer, // Make sure this is available in your run_panel store
   } = run_panel
   const { is_open } = quick_strategy
-  const { cancel_button_text, ok_button_text, title, message, dismissable, is_closed_on_cancel } = dialog_options as {
-    [key: string]: string
-  }
   const { clear } = summary_card
-  // Add FREE_BOTS to the DBOT_TABS destructuring
-  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS } = DBOT_TABS
+  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS } = DBOT_TABS // Add FREE_BOTS
   const init_render = React.useRef(true)
-  // Update hash array to include both 'strategies' and 'free-bots'
-  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies", "free-bots"]
+  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies", "free-bots"] // Add free-bots
   const { isDesktop } = useDevice()
   const location = useLocation()
   const navigate = useNavigate()
   const [left_tab_shadow, setLeftTabShadow] = useState<boolean>(false)
   const [right_tab_shadow, setRightTabShadow] = useState<boolean>(false)
 
-  // Ensure the run panel is visible for both Charts and Analysis tabs
+  // Force all tabs to be visible
   useEffect(() => {
-    // Show the run panel for Bot Builder, Charts, and Analysis tabs
-    const shouldShowRunPanel = active_tab === BOT_BUILDER || active_tab === CHART || active_tab === ANALYSIS
+    // This ensures the Analysis Tools and Strategies tabs are always visible
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("show_analysis_tools", "true")
+      window.localStorage.setItem("show_strategies", "true")
+      window.localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+      ;(window as any).SHOW_ALL_DBOT_TABS = true
+    }
+  }, [])
 
-    // Find the run panel element
-    const runPanelElement = document.querySelector(".main__run-strategy-wrapper")
-    if (runPanelElement) {
-      if (shouldShowRunPanel) {
-        runPanelElement.classList.remove("hidden")
-
-        // For Analysis tab and Charts tab, ensure the drawer is open to show transactions
-        if (
-          (active_tab === ANALYSIS || active_tab === CHART) &&
-          !is_drawer_open &&
-          typeof toggleDrawer === "function"
-        ) {
-          toggleDrawer(true)
-        }
-      } else {
-        runPanelElement.classList.add("hidden")
+  // Add effect to hide SmartTrader, Deriv Trader, and Traders Hub
+  useEffect(() => {
+    // Create a style element to inject CSS
+    const style = document.createElement("style")
+    style.innerHTML = `
+      /* Hide platform switcher and Trader's Hub elements */
+      .platform-switcher,
+      .platform-dropdown,
+      .traders-hub-link,
+      .platform-switcher__dropdown,
+      [data-testid="dt_platform_switcher"],
+      [data-testid="dt_traders_hub_link"],
+      .app-header__traders-hub,
+      .app-header__platform-switcher,
+      .platform-switcher__list,
+      .platform-switcher__list-item,
+      .platform-switcher__button,
+      a[href*="smarttrader"],
+      a[href*="trader"],
+      a[href*="traders-hub"],
+      a[href*="derivtrader"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
       }
+    `
+    document.head.appendChild(style)
+
+    // Also try to remove elements directly
+    const removeElements = () => {
+      const selectors = [
+        ".platform-switcher",
+        ".traders-hub-link",
+        '[data-testid="dt_platform_switcher"]',
+        '[data-testid="dt_traders_hub_link"]',
+        ".app-header__traders-hub",
+        ".app-header__platform-switcher",
+      ]
+
+      selectors.forEach((selector) => {
+        const elements = document.querySelectorAll(selector)
+        elements.forEach((el) => {
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el)
+          }
+        })
+      })
     }
 
-    // Add class to chart wrapper when transaction panel is open
-    const chartWrapperElement = document.querySelector(".chart-wrapper")
-    if (chartWrapperElement && active_tab === CHART) {
-      if (is_drawer_open) {
-        chartWrapperElement.classList.add("chart-wrapper--with-panel")
-      } else {
-        chartWrapperElement.classList.remove("chart-wrapper--with-panel")
-      }
+    // Run immediately and then periodically to catch dynamically added elements
+    removeElements()
+    const interval = setInterval(removeElements, 1000)
+
+    return () => {
+      document.head.removeChild(style)
+      clearInterval(interval)
     }
-  }, [active_tab, BOT_BUILDER, CHART, ANALYSIS, is_drawer_open, toggleDrawer])
+  }, [])
 
   let tab_value: number | string = active_tab
   const GetHashedValue = (tab: number) => {
@@ -196,6 +227,19 @@ const AppWrapper = observer(() => {
     // Run on mount and when active tab changes
     updateTabShadowsHeight()
 
+    // ALWAYS ensure tabs are visible, especially after login
+    if (typeof window !== "undefined") {
+      // Force all tabs to be visible by setting localStorage flags
+      localStorage.setItem("show_analysis_tools", "true")
+      localStorage.setItem("show_strategies", "true")
+      localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+
+      // Add a global flag to indicate these tabs should be visible
+      ;(window as any).SHOW_ALL_DBOT_TABS = true
+
+      console.log("Ensuring all tabs are visible after potential login")
+    }
+
     if (is_open) {
       setTourDialogVisibility(false)
     }
@@ -225,6 +269,33 @@ const AppWrapper = observer(() => {
       }
     }
   }, [active_tab])
+
+  // Add this new useEffect to monitor login state changes
+  React.useEffect(() => {
+    // Check if user just logged in by looking at the client object
+    const isLoggedIn = !!client?.loginid
+
+    if (isLoggedIn) {
+      console.log("User logged in, ensuring tabs are visible")
+      // Force all tabs to be visible
+      if (typeof window !== "undefined") {
+        localStorage.setItem("show_analysis_tools", "true")
+        localStorage.setItem("show_strategies", "true")
+        localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+        ;(window as any).SHOW_ALL_DBOT_TABS = true
+
+        // Force a re-render of the tabs
+        const tabsContainer = document.querySelector(".main__tabs")
+        if (tabsContainer) {
+          // This is a hack to force a re-render
+          tabsContainer.classList.add("force-update")
+          setTimeout(() => {
+            tabsContainer.classList.remove("force-update")
+          }, 10)
+        }
+      }
+    }
+  }, [client?.loginid])
 
   React.useEffect(() => {
     const trashcan_init_id = setTimeout(() => {
@@ -282,7 +353,7 @@ const AppWrapper = observer(() => {
     } else {
       const getQueryParams = new URLSearchParams(window.location.search)
       const currency = getQueryParams.get("account") ?? ""
-      const query_param_currency = currency || sessionStorage.getItem("query_param_currency") || "USD"
+      const query_param_currency = sessionStorage.getItem("query_param_currency") || currency || "USD"
       try {
         await requestOidcAuthentication({
           redirectCallbackUri: `${window.location.origin}/callback`,
@@ -301,6 +372,13 @@ const AppWrapper = observer(() => {
         // eslint-disable-next-line no-console
         console.error(error)
       }
+    }
+  }
+
+  // Make dashboard available globally for the Strategies component
+  if (typeof window !== "undefined") {
+    window.dashboard = {
+      setActiveTab: setActiveTab,
     }
   }
 
@@ -368,7 +446,7 @@ const AppWrapper = observer(() => {
                   </Suspense>
                 </div>
               </div>
-              {/* Add Analysis Tab */}
+              {/* Analysis Tab */}
               <div
                 label={
                   <>
@@ -384,27 +462,27 @@ const AppWrapper = observer(() => {
                 id="id-analysis"
               >
                 <Suspense fallback={<ChunkLoader message={localize("Please wait, loading analysis tool...")} />}>
-                  <AnalysisTools />
+                  <Analysis />
                 </Suspense>
               </div>
-              {/* Keep Strategies Tab */}
+              {/* Strategies Tab */}
               <div
                 label={
                   <>
-                    <LabelPairedPuzzlePieceTwoCaptionBoldIcon height="24px" width="24px" fill="var(--text-general)" />
+                    <LegacyTemplatesIcon
+                      height="16px"
+                      width="16px"
+                      fill="var(--text-general)"
+                      className="icon-general-fill-g-path"
+                    />
                     <Localize i18n_default_text="Strategies" />
                   </>
                 }
                 id="id-strategies"
               >
-                <div className="strategies-placeholder">
-                  <div style={{ padding: "2rem", textAlign: "center" }}>
-                    <h2>Strategies</h2>
-                    <p>Your strategies content will go here.</p>
-                  </div>
-                </div>
+                <Strategies />
               </div>
-              {/* Add FreeBots Tab */}
+              {/* Free Bots Tab */}
               <div
                 label={
                   <>
@@ -433,9 +511,9 @@ const AppWrapper = observer(() => {
       </DesktopWrapper>
       <MobileWrapper>{!is_open && <RunPanel />}</MobileWrapper>
       <Dialog
-        cancel_button_text={cancel_button_text || localize("Cancel")}
+        cancel_button_text={dialog_options?.cancel_button_text || localize("Cancel")}
         className="dc-dialog__wrapper--fixed"
-        confirm_button_text={ok_button_text || localize("Ok")}
+        confirm_button_text={dialog_options?.ok_button_text || localize("Ok")}
         has_close_icon
         is_mobile_full_width={false}
         is_visible={is_dialog_open}
@@ -443,12 +521,12 @@ const AppWrapper = observer(() => {
         onClose={onCloseDialog}
         onConfirm={onOkButtonClick || onCloseDialog}
         portal_element_id="modal_root"
-        title={title}
+        title={dialog_options?.title}
         login={handleLoginGeneration}
-        dismissable={dismissable} // Prevents closing on outside clicks
-        is_closed_on_cancel={is_closed_on_cancel}
+        dismissable={dialog_options?.dismissable} // Prevents closing on outside clicks
+        is_closed_on_cancel={dialog_options?.is_closed_on_cancel}
       >
-        {message}
+        {dialog_options?.message}
       </Dialog>
     </React.Fragment>
   )
