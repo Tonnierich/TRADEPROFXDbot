@@ -25,6 +25,7 @@ interface TradeSignal {
   duration_unit: string
   barrier?: string
   prediction?: number
+  basis?: string
 }
 
 const CopyTrading: React.FC = observer(() => {
@@ -46,6 +47,7 @@ const CopyTrading: React.FC = observer(() => {
 
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
+  const isActiveRef = useRef(false)
 
   useEffect(() => {
     masterWsRef.current = masterWs
@@ -55,9 +57,14 @@ const CopyTrading: React.FC = observer(() => {
     clientsRef.current = clients
   }, [clients])
 
+  useEffect(() => {
+    isActiveRef.current = isActive
+  }, [isActive])
+
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString()
     setLogs((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 49)])
+    console.log(`[CopyTrading] ${message}`) // Also log to console for debugging
   }
 
   const connectMaster = async () => {
@@ -95,6 +102,8 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   const handleMasterMessage = (data: any) => {
+    console.log("Master message received:", data) // Debug log
+
     if (data.error) {
       addLog(`❌ Master error: ${data.error.message}`)
       return
@@ -106,9 +115,30 @@ const CopyTrading: React.FC = observer(() => {
         setMasterBalance(data.authorize.balance)
         addLog(`✅ Master authorized: ${data.authorize.loginid}`)
 
+        // Subscribe to portfolio to monitor trades
         if (masterWsRef.current) {
-          masterWsRef.current.send(JSON.stringify({ balance: 1, subscribe: 1 }))
-          masterWsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }))
+          masterWsRef.current.send(
+            JSON.stringify({
+              portfolio: 1,
+              subscribe: 1,
+            }),
+          )
+
+          // Subscribe to balance updates
+          masterWsRef.current.send(
+            JSON.stringify({
+              balance: 1,
+              subscribe: 1,
+            }),
+          )
+
+          // Subscribe to proposal_open_contract for real-time trade monitoring
+          masterWsRef.current.send(
+            JSON.stringify({
+              proposal_open_contract: 1,
+              subscribe: 1,
+            }),
+          )
         }
         break
 
@@ -116,29 +146,70 @@ const CopyTrading: React.FC = observer(() => {
         setMasterBalance(data.balance.balance)
         break
 
-      case "transaction":
-        if (data.transaction.action === "buy" && isActive) {
-          addLog(`📈 Master trade detected: ${data.transaction.contract_type}`)
-          replicateTradeToClients(data.transaction)
+      case "portfolio":
+        // This fires when master's portfolio changes (new trades)
+        if (data.portfolio && data.portfolio.contracts && isActiveRef.current) {
+          const newContracts = data.portfolio.contracts.filter((contract: any) => {
+            // Look for recently opened contracts (within last 30 seconds)
+            const contractTime = new Date(contract.date_start * 1000)
+            const now = new Date()
+            const timeDiff = now.getTime() - contractTime.getTime()
+            return timeDiff < 30000 && contract.contract_type // Recently opened
+          })
+
+          if (newContracts.length > 0) {
+            newContracts.forEach((contract: any) => {
+              addLog(`📈 Master trade detected: ${contract.contract_type} on ${contract.symbol}`)
+              replicateTradeFromContract(contract)
+            })
+          }
         }
         break
 
       case "buy":
-        if (isActive) {
+        // Direct buy response from master
+        if (isActiveRef.current && data.buy) {
           addLog(`🎯 Master trade executed: ${data.buy.contract_id}`)
           const tradeSignal: TradeSignal = {
             contract_type: data.echo_req.contract_type,
             symbol: data.echo_req.symbol,
-            amount: data.echo_req.amount,
+            amount: data.echo_req.amount || data.echo_req.price,
             duration: data.echo_req.duration,
             duration_unit: data.echo_req.duration_unit,
             barrier: data.echo_req.barrier,
             prediction: data.echo_req.prediction,
+            basis: data.echo_req.basis || "stake",
           }
           replicateTradeToClients(tradeSignal)
         }
         break
+
+      case "proposal_open_contract":
+        // Monitor open contracts for new trades
+        if (data.proposal_open_contract && isActiveRef.current) {
+          const contract = data.proposal_open_contract
+          if (contract.is_sold === 0) {
+            // New open contract detected
+            addLog(`📊 New contract opened: ${contract.contract_type} on ${contract.symbol}`)
+          }
+        }
+        break
     }
+  }
+
+  const replicateTradeFromContract = (contract: any) => {
+    const tradeSignal: TradeSignal = {
+      contract_type: contract.contract_type,
+      symbol: contract.symbol,
+      amount: contract.buy_price,
+      duration: contract.duration || 5, // Default duration if not available
+      duration_unit: contract.duration_unit || "t", // Default to ticks
+      barrier: contract.barrier,
+      prediction: contract.prediction,
+      basis: "stake",
+    }
+
+    replicateTradeToClients(tradeSignal)
   }
 
   const addClient = async () => {
@@ -202,6 +273,8 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   const handleClientMessage = (clientId: string, data: any) => {
+    console.log(`Client ${clientId} message:`, data) // Debug log
+
     if (data.error) {
       addLog(`❌ Client ${clientId} error: ${data.error.message}`)
       updateClientStatus(clientId, "error")
@@ -216,6 +289,17 @@ const CopyTrading: React.FC = observer(() => {
           accountInfo: data.authorize,
         })
         addLog(`✅ Client ${clientId} authorized: ${data.authorize.loginid}`)
+
+        // Subscribe to balance updates for this client
+        const client = clientsRef.current.find((c) => c.id === clientId)
+        if (client?.ws) {
+          client.ws.send(
+            JSON.stringify({
+              balance: 1,
+              subscribe: 1,
+            }),
+          )
+        }
         break
 
       case "balance":
@@ -223,11 +307,19 @@ const CopyTrading: React.FC = observer(() => {
         break
 
       case "buy":
+        // Client trade executed successfully
         updateClient(clientId, {
           lastTrade: data.buy,
           totalCopiedTrades: (clients.find((c) => c.id === clientId)?.totalCopiedTrades || 0) + 1,
         })
         addLog(`✅ Trade copied to client ${clientId}: ${data.buy.contract_id}`)
+        break
+
+      case "buy_contract_for_multiple_accounts":
+        // Handle multiple account buy response
+        if (data.buy_contract_for_multiple_accounts) {
+          addLog(`✅ Multi-account trade executed for client ${clientId}`)
+        }
         break
     }
   }
@@ -252,14 +344,19 @@ const CopyTrading: React.FC = observer(() => {
 
     connectedClients.forEach((client) => {
       try {
+        // Calculate amount based on copy ratio and client balance
         let amount = tradeSignal.amount * copySettings.copyRatio
+
+        // Apply min/max limits
         amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
 
-        if (amount > client.balance) {
+        // Check if client has sufficient balance (with 10% buffer)
+        if (amount > client.balance * 0.9) {
           addLog(`⚠️ Client ${client.id} insufficient balance for trade`)
           return
         }
 
+        // Create the trade request with proper Deriv API format
         const tradeRequest = {
           buy: 1,
           price: amount,
@@ -268,17 +365,42 @@ const CopyTrading: React.FC = observer(() => {
             symbol: tradeSignal.symbol,
             duration: tradeSignal.duration,
             duration_unit: tradeSignal.duration_unit,
+            basis: tradeSignal.basis || "stake",
+            amount: amount,
             ...(tradeSignal.barrier && { barrier: tradeSignal.barrier }),
-            ...(tradeSignal.prediction && { prediction: tradeSignal.prediction }),
+            ...(tradeSignal.prediction !== undefined && { prediction: tradeSignal.prediction }),
           },
         }
 
+        console.log(`Sending trade to client ${client.id}:`, tradeRequest) // Debug log
+
         client.ws?.send(JSON.stringify(tradeRequest))
-        addLog(`📈 Trade sent to client ${client.id}`)
+        addLog(`📈 Trade sent to client ${client.id}: ${tradeSignal.contract_type} $${amount}`)
       } catch (error) {
         addLog(`❌ Failed to replicate trade to client ${client.id}`)
+        console.error("Trade replication error:", error)
       }
     })
+  }
+
+  // Test trade function for debugging
+  const sendTestTrade = () => {
+    if (!isActive) {
+      addLog("❌ Copy trading not active")
+      return
+    }
+
+    const testTrade: TradeSignal = {
+      contract_type: "CALL",
+      symbol: "R_50",
+      amount: 1,
+      duration: 5,
+      duration_unit: "t",
+      basis: "stake",
+    }
+
+    addLog("🧪 Sending test trade...")
+    replicateTradeToClients(testTrade)
   }
 
   const removeClient = (clientId: string) => {
@@ -459,6 +581,9 @@ const CopyTrading: React.FC = observer(() => {
         >
           {isActive ? "⏹️ Stop Copy Trading" : "▶️ Start Copy Trading"}
         </button>
+        <button onClick={sendTestTrade} className="ct-btn ct-btn-secondary" disabled={!isActive}>
+          🧪 Test Trade
+        </button>
         <button onClick={() => setShowLogs(!showLogs)} className="ct-btn ct-btn-secondary">
           📋 {showLogs ? "Hide" : "Show"} Logs
         </button>
@@ -475,7 +600,7 @@ const CopyTrading: React.FC = observer(() => {
             {logs.length === 0 ? (
               <div className="ct-no-logs">No activity yet...</div>
             ) : (
-              logs.slice(0, 10).map((log, index) => (
+              logs.slice(0, 15).map((log, index) => (
                 <div key={index} className="ct-log-entry">
                   {log}
                 </div>
@@ -495,4 +620,3 @@ const CopyTrading: React.FC = observer(() => {
 })
 
 export default CopyTrading
-
