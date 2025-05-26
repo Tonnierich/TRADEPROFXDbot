@@ -40,4 +40,3 @@ export const TAB_IDS = [
 ]
 
 export const DEBOUNCE_INTERVAL_TIME = 500 // Keep this export - it's used by search-input
-
