@@ -37,6 +37,7 @@ import "./main.scss"
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
 const Analysis = lazy(() => import("../analysis/analysis"))
+const FreeBots = lazy(() => import("../free-bots")) // Add FreeBots import
 
 // Declare Blockly
 declare var Blockly: any
@@ -66,9 +67,9 @@ const AppWrapper = observer(() => {
   } = run_panel
   const { is_open } = quick_strategy
   const { clear } = summary_card
-  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES } = DBOT_TABS
+  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS } = DBOT_TABS // Add FREE_BOTS
   const init_render = React.useRef(true)
-  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies"]
+  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies", "free-bots"] // Add free-bots
   const { isDesktop } = useDevice()
   const location = useLocation()
   const navigate = useNavigate()
@@ -81,6 +82,7 @@ const AppWrapper = observer(() => {
     if (typeof window !== "undefined") {
       window.localStorage.setItem("show_analysis_tools", "true")
       window.localStorage.setItem("show_strategies", "true")
+      window.localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
       ;(window as any).SHOW_ALL_DBOT_TABS = true
     }
   }, [])
@@ -230,6 +232,7 @@ const AppWrapper = observer(() => {
       // Force all tabs to be visible by setting localStorage flags
       localStorage.setItem("show_analysis_tools", "true")
       localStorage.setItem("show_strategies", "true")
+      localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
 
       // Add a global flag to indicate these tabs should be visible
       ;(window as any).SHOW_ALL_DBOT_TABS = true
@@ -278,6 +281,7 @@ const AppWrapper = observer(() => {
       if (typeof window !== "undefined") {
         localStorage.setItem("show_analysis_tools", "true")
         localStorage.setItem("show_strategies", "true")
+        localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
         ;(window as any).SHOW_ALL_DBOT_TABS = true
 
         // Force a re-render of the tabs
@@ -477,6 +481,20 @@ const AppWrapper = observer(() => {
                 id="id-strategies"
               >
                 <Strategies />
+              </div>
+              {/* Free Bots Tab */}
+              <div
+                label={
+                  <>
+                    <LabelPairedPuzzlePieceTwoCaptionBoldIcon height="24px" width="24px" fill="var(--text-general)" />
+                    <Localize i18n_default_text="Free Bots" />
+                  </>
+                }
+                id="id-free-bots"
+              >
+                <Suspense fallback={<ChunkLoader message={localize("Please wait, loading free bots...")} />}>
+                  <FreeBots />
+                </Suspense>
               </div>
             </Tabs>
             {!isDesktop && right_tab_shadow && <span className="tabs-shadow tabs-shadow--right" />}{" "}
