@@ -17,15 +17,17 @@ interface ClientConnection {
   totalProfit: number
 }
 
-interface TradeSignal {
+interface TradeDetails {
   contract_type: string
   symbol: string
   amount: number
   duration: number
   duration_unit: string
   barrier?: string
+  barrier2?: string
   prediction?: number
-  basis?: string
+  basis: string
+  currency: string
 }
 
 const CopyTrading: React.FC = observer(() => {
@@ -48,6 +50,7 @@ const CopyTrading: React.FC = observer(() => {
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
   const isActiveRef = useRef(false)
+  const lastProcessedTradeRef = useRef<string>("")
 
   useEffect(() => {
     masterWsRef.current = masterWs
@@ -63,8 +66,8 @@ const CopyTrading: React.FC = observer(() => {
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString()
-    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 49)])
-    console.log(`[CopyTrading] ${message}`) // Also log to console for debugging
+    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 99)])
+    console.log(`[CopyTrading] ${message}`)
   }
 
   const connectMaster = async () => {
@@ -77,8 +80,13 @@ const CopyTrading: React.FC = observer(() => {
       const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089")
 
       ws.onopen = () => {
-        addLog("🔗 Connected to Deriv API")
-        ws.send(JSON.stringify({ authorize: masterToken }))
+        addLog("🔗 Connected to Deriv API for Master")
+        ws.send(
+          JSON.stringify({
+            authorize: masterToken,
+            req_id: 1,
+          }),
+        )
       }
 
       ws.onmessage = (event) => {
@@ -86,8 +94,9 @@ const CopyTrading: React.FC = observer(() => {
         handleMasterMessage(data)
       }
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
         addLog("❌ Master connection error")
+        console.error("Master WebSocket error:", error)
       }
 
       ws.onclose = () => {
@@ -98,11 +107,12 @@ const CopyTrading: React.FC = observer(() => {
       setMasterWs(ws)
     } catch (error) {
       addLog("❌ Failed to connect master account")
+      console.error("Master connection error:", error)
     }
   }
 
   const handleMasterMessage = (data: any) => {
-    console.log("Master message received:", data) // Debug log
+    console.log("🔍 Master message:", data)
 
     if (data.error) {
       addLog(`❌ Master error: ${data.error.message}`)
@@ -115,101 +125,145 @@ const CopyTrading: React.FC = observer(() => {
         setMasterBalance(data.authorize.balance)
         addLog(`✅ Master authorized: ${data.authorize.loginid}`)
 
-        // Subscribe to portfolio to monitor trades
+        // Subscribe to critical streams for trade detection
         if (masterWsRef.current) {
+          // Subscribe to portfolio changes (most reliable for trade detection)
           masterWsRef.current.send(
             JSON.stringify({
               portfolio: 1,
               subscribe: 1,
+              req_id: 2,
             }),
           )
 
-          // Subscribe to balance updates
+          // Subscribe to balance changes
           masterWsRef.current.send(
             JSON.stringify({
               balance: 1,
               subscribe: 1,
+              req_id: 3,
             }),
           )
 
-          // Subscribe to proposal_open_contract for real-time trade monitoring
+          // Subscribe to transaction stream (catches all buy/sell activities)
           masterWsRef.current.send(
             JSON.stringify({
-              proposal_open_contract: 1,
+              transaction: 1,
               subscribe: 1,
+              req_id: 4,
             }),
           )
+
+          addLog("📡 Subscribed to master account streams")
         }
         break
 
       case "balance":
-        setMasterBalance(data.balance.balance)
+        const newBalance = data.balance.balance
+        if (newBalance !== masterBalance) {
+          setMasterBalance(newBalance)
+          addLog(`💰 Master balance updated: $${newBalance.toFixed(2)}`)
+        }
         break
 
       case "portfolio":
-        // This fires when master's portfolio changes (new trades)
+        // Portfolio changes indicate new trades
         if (data.portfolio && data.portfolio.contracts && isActiveRef.current) {
-          const newContracts = data.portfolio.contracts.filter((contract: any) => {
-            // Look for recently opened contracts (within last 30 seconds)
+          const contracts = data.portfolio.contracts
+
+          // Look for new contracts (recently opened)
+          contracts.forEach((contract: any) => {
+            const contractId = contract.contract_id.toString()
+
+            // Skip if we already processed this trade
+            if (lastProcessedTradeRef.current === contractId) {
+              return
+            }
+
+            // Check if this is a new trade (within last 60 seconds)
             const contractTime = new Date(contract.date_start * 1000)
             const now = new Date()
             const timeDiff = now.getTime() - contractTime.getTime()
-            return timeDiff < 30000 && contract.contract_type // Recently opened
-          })
 
-          if (newContracts.length > 0) {
-            newContracts.forEach((contract: any) => {
-              addLog(`📈 Master trade detected: ${contract.contract_type} on ${contract.symbol}`)
-              replicateTradeFromContract(contract)
-            })
+            if (timeDiff < 60000 && contract.contract_type) {
+              lastProcessedTradeRef.current = contractId
+              addLog(`🎯 NEW TRADE DETECTED: ${contract.contract_type} on ${contract.symbol}`)
+
+              // Get full contract details and replicate
+              getContractDetailsAndReplicate(contract)
+            }
+          })
+        }
+        break
+
+      case "transaction":
+        // Transaction stream catches buy activities
+        if (data.transaction && data.transaction.action === "buy" && isActiveRef.current) {
+          const transaction = data.transaction
+          addLog(`💳 Transaction detected: ${transaction.contract_type} - $${transaction.amount}`)
+
+          // Extract trade details from transaction
+          const tradeDetails: TradeDetails = {
+            contract_type: transaction.contract_type,
+            symbol: transaction.symbol,
+            amount: transaction.amount,
+            duration: transaction.duration || 5,
+            duration_unit: transaction.duration_unit || "t",
+            barrier: transaction.barrier,
+            barrier2: transaction.barrier2,
+            prediction: transaction.prediction,
+            basis: "stake",
+            currency: transaction.currency || "USD",
           }
+
+          replicateTradeToClients(tradeDetails)
         }
         break
 
       case "buy":
-        // Direct buy response from master
-        if (isActiveRef.current && data.buy) {
-          addLog(`🎯 Master trade executed: ${data.buy.contract_id}`)
-          const tradeSignal: TradeSignal = {
-            contract_type: data.echo_req.contract_type,
-            symbol: data.echo_req.symbol,
-            amount: data.echo_req.amount || data.echo_req.price,
-            duration: data.echo_req.duration,
-            duration_unit: data.echo_req.duration_unit,
-            barrier: data.echo_req.barrier,
-            prediction: data.echo_req.prediction,
-            basis: data.echo_req.basis || "stake",
-          }
-          replicateTradeToClients(tradeSignal)
-        }
-        break
+        // Direct buy response from master (when master executes trade)
+        if (data.buy && isActiveRef.current) {
+          const buyData = data.buy
+          const echoReq = data.echo_req
 
-      case "proposal_open_contract":
-        // Monitor open contracts for new trades
-        if (data.proposal_open_contract && isActiveRef.current) {
-          const contract = data.proposal_open_contract
-          if (contract.is_sold === 0) {
-            // New open contract detected
-            addLog(`📊 New contract opened: ${contract.contract_type} on ${contract.symbol}`)
+          addLog(`🚀 Master trade executed: ${buyData.contract_id}`)
+
+          const tradeDetails: TradeDetails = {
+            contract_type: echoReq.contract_type,
+            symbol: echoReq.symbol,
+            amount: echoReq.amount || echoReq.price,
+            duration: echoReq.duration,
+            duration_unit: echoReq.duration_unit,
+            barrier: echoReq.barrier,
+            barrier2: echoReq.barrier2,
+            prediction: echoReq.prediction,
+            basis: echoReq.basis || "stake",
+            currency: echoReq.currency || "USD",
           }
+
+          replicateTradeToClients(tradeDetails)
         }
         break
     }
   }
 
-  const replicateTradeFromContract = (contract: any) => {
-    const tradeSignal: TradeSignal = {
+  const getContractDetailsAndReplicate = (contract: any) => {
+    // Extract comprehensive trade details from portfolio contract
+    const tradeDetails: TradeDetails = {
       contract_type: contract.contract_type,
       symbol: contract.symbol,
       amount: contract.buy_price,
-      duration: contract.duration || 5, // Default duration if not available
-      duration_unit: contract.duration_unit || "t", // Default to ticks
+      duration: contract.duration || 5,
+      duration_unit: contract.duration_unit || "t",
       barrier: contract.barrier,
+      barrier2: contract.barrier2,
       prediction: contract.prediction,
       basis: "stake",
+      currency: contract.currency || "USD",
     }
 
-    replicateTradeToClients(tradeSignal)
+    addLog(`📋 Extracted trade details: ${JSON.stringify(tradeDetails)}`)
+    replicateTradeToClients(tradeDetails)
   }
 
   const addClient = async () => {
@@ -247,7 +301,12 @@ const CopyTrading: React.FC = observer(() => {
 
       ws.onopen = () => {
         addLog(`🔗 Connecting client: ${client.id}`)
-        ws.send(JSON.stringify({ authorize: client.token }))
+        ws.send(
+          JSON.stringify({
+            authorize: client.token,
+            req_id: `client_${client.id}_auth`,
+          }),
+        )
       }
 
       ws.onmessage = (event) => {
@@ -255,9 +314,10 @@ const CopyTrading: React.FC = observer(() => {
         handleClientMessage(client.id, data)
       }
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
         addLog(`❌ Client ${client.id} connection error`)
         updateClientStatus(client.id, "error")
+        console.error(`Client ${client.id} error:`, error)
       }
 
       ws.onclose = () => {
@@ -273,11 +333,13 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   const handleClientMessage = (clientId: string, data: any) => {
-    console.log(`Client ${clientId} message:`, data) // Debug log
+    console.log(`👤 Client ${clientId} message:`, data)
 
     if (data.error) {
       addLog(`❌ Client ${clientId} error: ${data.error.message}`)
-      updateClientStatus(clientId, "error")
+      if (data.error.code === "InvalidToken") {
+        updateClientStatus(clientId, "error")
+      }
       return
     }
 
@@ -297,6 +359,7 @@ const CopyTrading: React.FC = observer(() => {
             JSON.stringify({
               balance: 1,
               subscribe: 1,
+              req_id: `client_${clientId}_balance`,
             }),
           )
         }
@@ -304,6 +367,25 @@ const CopyTrading: React.FC = observer(() => {
 
       case "balance":
         updateClient(clientId, { balance: data.balance.balance })
+        addLog(`💰 Client ${clientId} balance: $${data.balance.balance.toFixed(2)}`)
+        break
+
+      case "proposal":
+        // Proposal response - now we can buy
+        if (data.proposal && data.proposal.id) {
+          const client = clientsRef.current.find((c) => c.id === clientId)
+          if (client?.ws) {
+            // Execute the buy with the proposal ID
+            client.ws.send(
+              JSON.stringify({
+                buy: data.proposal.id,
+                price: data.proposal.ask_price,
+                req_id: `client_${clientId}_buy`,
+              }),
+            )
+            addLog(`💸 Executing buy for client ${clientId} with proposal ${data.proposal.id}`)
+          }
+        }
         break
 
       case "buy":
@@ -312,14 +394,7 @@ const CopyTrading: React.FC = observer(() => {
           lastTrade: data.buy,
           totalCopiedTrades: (clients.find((c) => c.id === clientId)?.totalCopiedTrades || 0) + 1,
         })
-        addLog(`✅ Trade copied to client ${clientId}: ${data.buy.contract_id}`)
-        break
-
-      case "buy_contract_for_multiple_accounts":
-        // Handle multiple account buy response
-        if (data.buy_contract_for_multiple_accounts) {
-          addLog(`✅ Multi-account trade executed for client ${clientId}`)
-        }
+        addLog(`✅ TRADE COPIED to client ${clientId}: ${data.buy.contract_id}`)
         break
     }
   }
@@ -332,7 +407,7 @@ const CopyTrading: React.FC = observer(() => {
     setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c)))
   }
 
-  const replicateTradeToClients = (tradeSignal: TradeSignal) => {
+  const replicateTradeToClients = (tradeDetails: TradeDetails) => {
     const connectedClients = clientsRef.current.filter((c) => c.status === "connected" && c.ws)
 
     if (connectedClients.length === 0) {
@@ -340,63 +415,73 @@ const CopyTrading: React.FC = observer(() => {
       return
     }
 
-    addLog(`📤 Replicating trade to ${connectedClients.length} clients`)
+    addLog(`📤 REPLICATING TRADE to ${connectedClients.length} clients`)
+    addLog(`📋 Trade details: ${tradeDetails.contract_type} on ${tradeDetails.symbol}`)
 
-    connectedClients.forEach((client) => {
-      try {
-        // Calculate amount based on copy ratio and client balance
-        let amount = tradeSignal.amount * copySettings.copyRatio
+    connectedClients.forEach((client, index) => {
+      setTimeout(() => {
+        try {
+          // Calculate amount based on copy ratio and limits
+          let amount = tradeDetails.amount * copySettings.copyRatio
+          amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
 
-        // Apply min/max limits
-        amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
+          // Check client balance (leave 20% buffer)
+          if (amount > client.balance * 0.8) {
+            addLog(`⚠️ Client ${client.id} insufficient balance for $${amount} trade`)
+            return
+          }
 
-        // Check if client has sufficient balance (with 10% buffer)
-        if (amount > client.balance * 0.9) {
-          addLog(`⚠️ Client ${client.id} insufficient balance for trade`)
-          return
-        }
-
-        // Create the trade request with proper Deriv API format
-        const tradeRequest = {
-          buy: 1,
-          price: amount,
-          parameters: {
-            contract_type: tradeSignal.contract_type,
-            symbol: tradeSignal.symbol,
-            duration: tradeSignal.duration,
-            duration_unit: tradeSignal.duration_unit,
-            basis: tradeSignal.basis || "stake",
+          // Create proposal request first (Deriv API requires proposal before buy)
+          const proposalRequest = {
+            proposal: 1,
             amount: amount,
-            ...(tradeSignal.barrier && { barrier: tradeSignal.barrier }),
-            ...(tradeSignal.prediction !== undefined && { prediction: tradeSignal.prediction }),
-          },
+            basis: tradeDetails.basis,
+            contract_type: tradeDetails.contract_type,
+            currency: tradeDetails.currency,
+            symbol: tradeDetails.symbol,
+            duration: tradeDetails.duration,
+            duration_unit: tradeDetails.duration_unit,
+            req_id: `client_${client.id}_proposal_${Date.now()}`,
+          }
+
+          // Add optional parameters
+          if (tradeDetails.barrier) {
+            proposalRequest.barrier = tradeDetails.barrier
+          }
+          if (tradeDetails.barrier2) {
+            proposalRequest.barrier2 = tradeDetails.barrier2
+          }
+          if (tradeDetails.prediction !== undefined) {
+            proposalRequest.prediction = tradeDetails.prediction
+          }
+
+          console.log(`📤 Sending proposal to client ${client.id}:`, proposalRequest)
+
+          client.ws?.send(JSON.stringify(proposalRequest))
+          addLog(`📋 Proposal sent to client ${client.id}: ${tradeDetails.contract_type} $${amount}`)
+        } catch (error) {
+          addLog(`❌ Failed to replicate trade to client ${client.id}`)
+          console.error(`Replication error for client ${client.id}:`, error)
         }
-
-        console.log(`Sending trade to client ${client.id}:`, tradeRequest) // Debug log
-
-        client.ws?.send(JSON.stringify(tradeRequest))
-        addLog(`📈 Trade sent to client ${client.id}: ${tradeSignal.contract_type} $${amount}`)
-      } catch (error) {
-        addLog(`❌ Failed to replicate trade to client ${client.id}`)
-        console.error("Trade replication error:", error)
-      }
+      }, index * 100) // Stagger requests to avoid rate limiting
     })
   }
 
-  // Test trade function for debugging
+  // Test trade function
   const sendTestTrade = () => {
     if (!isActive) {
       addLog("❌ Copy trading not active")
       return
     }
 
-    const testTrade: TradeSignal = {
+    const testTrade: TradeDetails = {
       contract_type: "CALL",
       symbol: "R_50",
       amount: 1,
       duration: 5,
       duration_unit: "t",
       basis: "stake",
+      currency: "USD",
     }
 
     addLog("🧪 Sending test trade...")
@@ -424,7 +509,7 @@ const CopyTrading: React.FC = observer(() => {
     }
 
     setIsActive(!isActive)
-    addLog(isActive ? "⏹️ Copy trading stopped" : "▶️ Copy trading started")
+    addLog(isActive ? "⏹️ COPY TRADING STOPPED" : "▶️ COPY TRADING STARTED - Monitoring master trades...")
   }
 
   const syncClients = () => {
@@ -461,7 +546,9 @@ const CopyTrading: React.FC = observer(() => {
             💰 Real
           </button>
         </div>
-        <div className={`ct-status ${isActive ? "active" : "inactive"}`}>{isActive ? "🟢 ACTIVE" : "🔴 INACTIVE"}</div>
+        <div className={`ct-status ${isActive ? "active" : "inactive"}`}>
+          {isActive ? "🟢 MONITORING TRADES" : "🔴 INACTIVE"}
+        </div>
       </div>
 
       {/* Master Account */}
@@ -579,7 +666,7 @@ const CopyTrading: React.FC = observer(() => {
           className={`ct-main-btn ${isActive ? "stop" : "start"}`}
           disabled={!masterWs || clients.filter((c) => c.status === "connected").length === 0}
         >
-          {isActive ? "⏹️ Stop Copy Trading" : "▶️ Start Copy Trading"}
+          {isActive ? "⏹️ Stop Monitoring" : "▶️ Start Copy Trading"}
         </button>
         <button onClick={sendTestTrade} className="ct-btn ct-btn-secondary" disabled={!isActive}>
           🧪 Test Trade
@@ -600,7 +687,7 @@ const CopyTrading: React.FC = observer(() => {
             {logs.length === 0 ? (
               <div className="ct-no-logs">No activity yet...</div>
             ) : (
-              logs.slice(0, 15).map((log, index) => (
+              logs.slice(0, 20).map((log, index) => (
                 <div key={index} className="ct-log-entry">
                   {log}
                 </div>
@@ -610,10 +697,32 @@ const CopyTrading: React.FC = observer(() => {
         </div>
       )}
 
+      {/* Instructions */}
+      <div className="ct-section">
+        <h3>📖 How to Use</h3>
+        <div style={{ fontSize: "0.8rem", lineHeight: "1.4" }}>
+          <p>
+            <strong>1.</strong> Connect your Master account (the account you'll trade from)
+          </p>
+          <p>
+            <strong>2.</strong> Add Client accounts (accounts that will copy the trades)
+          </p>
+          <p>
+            <strong>3.</strong> Start Copy Trading to begin monitoring
+          </p>
+          <p>
+            <strong>4.</strong> Execute trades on Master account - they'll auto-copy to clients!
+          </p>
+          <p>
+            <strong>5.</strong> Monitor the Activity Log to see trade replication in real-time
+          </p>
+        </div>
+      </div>
+
       {/* Risk Warning */}
       <div className="ct-warning">
         ⚠️ <strong>Risk Warning:</strong> Copy trading involves significant risk. Only trade with money you can afford to
-        lose.
+        lose. Test with small amounts first!
       </div>
     </div>
   )
