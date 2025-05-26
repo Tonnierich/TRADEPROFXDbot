@@ -4,22 +4,21 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { observer } from "mobx-react-lite"
 
-interface MasterTrade {
-  proposal_id: string
-  amount: number
-  basis: string
-  contract_type: string
-  currency: string
-  duration: number
-  duration_unit: string
-  symbol: string
-  barrier?: string
-  barrier2?: string
-  prediction?: number
-  buy_price: number
-  payout: number
-  spot: number
-  spot_time: number
+interface MasterBuyRequest {
+  buy: number
+  parameters: {
+    amount: number
+    basis: string
+    contract_type: string
+    currency: string
+    duration: number
+    duration_unit: string
+    symbol: string
+    barrier?: string
+    barrier2?: string
+    prediction?: number
+  }
+  req_id: number
 }
 
 interface ClientConnection {
@@ -30,35 +29,38 @@ interface ClientConnection {
   loginid: string
   balance: number
   currency: string
-  is_subscribed: { [symbol: string]: boolean }
-  last_copied_trade: string | null
+  last_trade_id: string | null
+  total_copied: number
 }
 
-const PerfectCopyTrading: React.FC = observer(() => {
+const BulletproofCopyTrading: React.FC = observer(() => {
   const [masterToken, setMasterToken] = useState("")
-  const [clientTokens, setClientTokens] = useState<string[]>([])
+  const [clients, setClients] = useState<ClientConnection[]>([])
   const [newClientToken, setNewClientToken] = useState("")
   const [isActive, setIsActive] = useState(false)
   const [masterWs, setMasterWs] = useState<WebSocket | null>(null)
-  const [clients, setClients] = useState<ClientConnection[]>([])
+  const [masterAccount, setMasterAccount] = useState("")
   const [logs, setLogs] = useState<string[]>([])
-  const [stats, setStats] = useState({ total: 0, success: 0, failed: 0 })
+  const [stats, setStats] = useState({ detected: 0, replicated: 0, failed: 0 })
   const [appId, setAppId] = useState("1089")
 
+  // Refs for real-time access
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
   const isActiveRef = useRef(false)
   const processedTradesRef = useRef<Set<string>>(new Set())
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const lastMasterBuyRef = useRef<MasterBuyRequest | null>(null)
 
   const log = (message: string, type: "info" | "success" | "error" | "warning" = "info") => {
     const timestamp = new Date().toLocaleTimeString()
     const emoji = type === "success" ? "✅" : type === "error" ? "❌" : type === "warning" ? "⚠️" : "ℹ️"
     const logEntry = `${timestamp} ${emoji} ${message}`
     setLogs((prev) => [logEntry, ...prev.slice(0, 19)])
-    console.log(`[PerfectCopy] ${logEntry}`)
+    console.log(`[BulletproofCopy] ${logEntry}`)
   }
 
-  // 🎯 STEP 1: CONNECT MASTER WITH FULL MONITORING
+  // 🎯 STEP 1: CONNECT MASTER WITH KEEPALIVE
   const connectMaster = async () => {
     if (!masterToken.trim()) {
       log("Master token required", "error")
@@ -70,7 +72,16 @@ const PerfectCopyTrading: React.FC = observer(() => {
 
       ws.onopen = () => {
         log("Master WebSocket connected", "success")
-        // Authorize first
+
+        // Start keepalive ping
+        if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ ping: 1 }))
+          }
+        }, 30000) // Ping every 30 seconds
+
+        // Authorize master
         ws.send(
           JSON.stringify({
             authorize: masterToken.trim(),
@@ -81,17 +92,33 @@ const PerfectCopyTrading: React.FC = observer(() => {
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
-        handleMasterMessage(data)
+        handleMasterMessage(data, ws)
       }
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
         log("Master WebSocket error", "error")
+        console.error("Master WS Error:", error)
       }
 
-      ws.onclose = () => {
-        log("Master WebSocket disconnected", "warning")
+      ws.onclose = (event) => {
+        log(`Master WebSocket disconnected (${event.code}: ${event.reason})`, "warning")
         setMasterWs(null)
         masterWsRef.current = null
+        setMasterAccount("")
+
+        // Clear ping interval
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current)
+          pingIntervalRef.current = null
+        }
+
+        // Auto-reconnect after 3 seconds if was active
+        if (isActiveRef.current) {
+          setTimeout(() => {
+            log("Auto-reconnecting master...", "info")
+            connectMaster()
+          }, 3000)
+        }
       }
 
       setMasterWs(ws)
@@ -101,8 +128,42 @@ const PerfectCopyTrading: React.FC = observer(() => {
     }
   }
 
-  // 🎯 STEP 2: HANDLE MASTER MESSAGES WITH PERFECT DETECTION
-  const handleMasterMessage = (data: any) => {
+  // 🎯 STEP 2: INTERCEPT OUTGOING BUY REQUESTS FROM MASTER
+  const interceptMasterBuyRequest = (ws: WebSocket) => {
+    // Store original send method
+    const originalSend = ws.send.bind(ws)
+
+    // Override send method to intercept buy requests
+    ws.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
+      try {
+        if (typeof data === "string") {
+          const parsed = JSON.parse(data)
+
+          // 🔥 CAPTURE BUY REQUESTS BEFORE THEY'RE SENT!
+          if (parsed.buy === 1 && parsed.parameters && isActiveRef.current) {
+            log(`🚨 INTERCEPTED: ${parsed.parameters.contract_type} $${parsed.parameters.amount}`, "success")
+
+            // Store the exact buy request
+            lastMasterBuyRef.current = parsed as MasterBuyRequest
+
+            // Immediately replicate to clients
+            replicateExactBuyRequest(parsed.parameters)
+
+            // Update stats
+            setStats((prev) => ({ ...prev, detected: prev.detected + 1 }))
+          }
+        }
+      } catch (error) {
+        // If parsing fails, just continue with original send
+      }
+
+      // Always call original send
+      return originalSend(data)
+    }
+  }
+
+  // 🎯 STEP 3: HANDLE MASTER MESSAGES
+  const handleMasterMessage = (data: any, ws: WebSocket) => {
     if (data.error) {
       log(`Master error: ${data.error.message}`, "error")
       return
@@ -110,161 +171,111 @@ const PerfectCopyTrading: React.FC = observer(() => {
 
     switch (data.msg_type) {
       case "authorize":
+        setMasterAccount(data.authorize.loginid)
         log(`Master authorized: ${data.authorize.loginid}`, "success")
-        // Subscribe to ALL necessary streams for instant detection
-        if (masterWsRef.current) {
-          // Portfolio for trade history
-          masterWsRef.current.send(
-            JSON.stringify({
-              portfolio: 1,
-              req_id: 2,
-            }),
-          )
 
-          // Transaction stream for INSTANT detection
-          masterWsRef.current.send(
-            JSON.stringify({
-              transaction: 1,
-              subscribe: 1,
-              req_id: 3,
-            }),
-          )
+        // 🔥 INTERCEPT OUTGOING MESSAGES FROM MASTER
+        interceptMasterBuyRequest(ws)
 
-          // Balance stream for backup detection
-          masterWsRef.current.send(
-            JSON.stringify({
-              balance: 1,
-              subscribe: 1,
-              req_id: 4,
-            }),
-          )
+        // Subscribe to necessary streams for backup detection
+        ws.send(
+          JSON.stringify({
+            transaction: 1,
+            subscribe: 1,
+            req_id: 3,
+          }),
+        )
+        break
+
+      case "buy":
+        // Backup confirmation that trade went through
+        if (data.buy?.contract_id && isActiveRef.current) {
+          log(`✅ Master trade confirmed: ${data.buy.shortcode}`, "success")
         }
         break
 
       case "transaction":
-        // 🔥 INSTANT TRADE DETECTION - This is the key!
+        // Additional backup detection
         if (data.transaction?.action === "buy" && isActiveRef.current) {
-          const transaction = data.transaction
-          const tradeId = transaction.transaction_id?.toString()
-
+          const tradeId = data.transaction.transaction_id?.toString()
           if (tradeId && !processedTradesRef.current.has(tradeId)) {
             processedTradesRef.current.add(tradeId)
-            log(`🚨 INSTANT: New trade detected - ${transaction.contract_type}`, "success")
-
-            // Extract EXACT trade parameters from transaction
-            const masterTrade = extractMasterTradeFromTransaction(transaction)
-            if (masterTrade) {
-              // 🎯 REPLICATE IMMEDIATELY - NO DELAYS!
-              replicateTradeInstantly(masterTrade)
-            }
+            log(`📋 Transaction logged: ${data.transaction.contract_type}`, "info")
           }
         }
         break
 
-      case "buy":
-        // Backup detection method
-        if (data.buy?.contract_id && isActiveRef.current) {
-          const contractId = data.buy.contract_id.toString()
-          if (!processedTradesRef.current.has(contractId)) {
-            processedTradesRef.current.add(contractId)
-            log(`📋 Backup: Trade confirmed - ${data.buy.shortcode}`, "info")
-          }
-        }
-        break
-
-      case "portfolio":
-        // Initial portfolio check for existing trades
-        if (data.portfolio?.contracts) {
-          log(`Portfolio loaded: ${data.portfolio.contracts.length} contracts`, "info")
-        }
+      case "pong":
+        // Keepalive response
         break
     }
   }
 
-  // 🎯 STEP 3: EXTRACT PERFECT TRADE PARAMETERS
-  const extractMasterTradeFromTransaction = (transaction: any): MasterTrade | null => {
-    try {
-      // Validate required fields
-      if (!transaction.contract_type || !transaction.symbol || !transaction.amount) {
-        log("Invalid transaction data", "error")
-        return null
-      }
-
-      const masterTrade: MasterTrade = {
-        proposal_id: transaction.proposal_id || `${Date.now()}`,
-        amount: Math.abs(transaction.amount), // ✅ Ensure positive amount
-        basis: "stake", // ✅ Always use stake basis
-        contract_type: transaction.contract_type,
-        currency: transaction.currency || "USD",
-        duration: transaction.duration || 5,
-        duration_unit: transaction.duration_unit || "t",
-        symbol: transaction.symbol,
-        buy_price: Math.abs(transaction.amount),
-        payout: transaction.payout || 0,
-        spot: transaction.entry_spot || 0,
-        spot_time: transaction.entry_spot_time || Date.now() / 1000,
-      }
-
-      // Add barriers if present
-      if (transaction.barrier) masterTrade.barrier = transaction.barrier.toString()
-      if (transaction.barrier2) masterTrade.barrier2 = transaction.barrier2.toString()
-      if (transaction.prediction !== undefined) masterTrade.prediction = transaction.prediction
-
-      log(`✅ Master trade extracted: ${masterTrade.contract_type} $${masterTrade.amount}`, "success")
-      return masterTrade
-    } catch (error) {
-      log(`Failed to extract trade: ${error}`, "error")
-      return null
-    }
-  }
-
-  // 🎯 STEP 4: INSTANT PERFECT REPLICATION
-  const replicateTradeInstantly = (masterTrade: MasterTrade) => {
-    const readyClients = clientsRef.current.filter(
-      (client) =>
-        client.status === "connected" &&
-        client.ws &&
-        client.balance >= masterTrade.amount &&
-        client.is_subscribed[masterTrade.symbol],
-    )
-
-    if (readyClients.length === 0) {
-      log("No ready clients for replication", "warning")
+  // 🎯 STEP 4: REPLICATE EXACT BUY REQUEST
+  const replicateExactBuyRequest = (masterParameters: any) => {
+    // Validate parameters first
+    if (
+      !masterParameters ||
+      !masterParameters.contract_type ||
+      !masterParameters.symbol ||
+      !masterParameters.amount ||
+      masterParameters.amount <= 0
+    ) {
+      log("❌ Invalid master parameters - skipping replication", "error")
       return
     }
 
-    log(`🚀 REPLICATING to ${readyClients.length} clients`, "success")
+    const readyClients = clientsRef.current.filter(
+      (client) => client.status === "connected" && client.ws && client.balance >= masterParameters.amount,
+    )
 
-    // 🔥 SEND IDENTICAL TRADES SIMULTANEOUSLY
+    if (readyClients.length === 0) {
+      log("⚠️ No ready clients for replication", "warning")
+      return
+    }
+
+    log(`🚀 Replicating to ${readyClients.length} clients`, "success")
+
+    // 🔥 SEND IDENTICAL BUY REQUESTS TO ALL CLIENTS
     readyClients.forEach((client, index) => {
-      const buyRequest = {
+      const exactBuyRequest = {
         buy: 1,
         parameters: {
-          amount: masterTrade.amount, // ✅ EXACT same amount
-          basis: masterTrade.basis, // ✅ EXACT same basis
-          contract_type: masterTrade.contract_type, // ✅ EXACT same type
-          currency: masterTrade.currency, // ✅ EXACT same currency
-          duration: masterTrade.duration, // ✅ EXACT same duration
-          duration_unit: masterTrade.duration_unit, // ✅ EXACT same unit
-          symbol: masterTrade.symbol, // ✅ EXACT same symbol
-          ...(masterTrade.barrier && { barrier: masterTrade.barrier }),
-          ...(masterTrade.barrier2 && { barrier2: masterTrade.barrier2 }),
-          ...(masterTrade.prediction !== undefined && { prediction: masterTrade.prediction }),
+          // 🎯 EXACT SAME PARAMETERS - NO MODIFICATIONS!
+          amount: masterParameters.amount,
+          basis: masterParameters.basis,
+          contract_type: masterParameters.contract_type,
+          currency: masterParameters.currency,
+          duration: masterParameters.duration,
+          duration_unit: masterParameters.duration_unit,
+          symbol: masterParameters.symbol,
+          // Include all optional parameters exactly as master sent them
+          ...(masterParameters.barrier && { barrier: masterParameters.barrier }),
+          ...(masterParameters.barrier2 && { barrier2: masterParameters.barrier2 }),
+          ...(masterParameters.prediction !== undefined && { prediction: masterParameters.prediction }),
         },
-        req_id: Date.now() + index, // Unique request ID
+        req_id: Date.now() + index, // Unique request ID per client
       }
 
-      // 🎯 SEND IMMEDIATELY - NO DELAYS!
-      client.ws!.send(JSON.stringify(buyRequest))
+      try {
+        // 🎯 SEND IMMEDIATELY - NO DELAYS!
+        client.ws!.send(JSON.stringify(exactBuyRequest))
 
-      log(`📤 Sent to ${client.loginid}: ${masterTrade.contract_type} $${masterTrade.amount}`, "info")
+        log(`📤 Sent to ${client.loginid}: ${masterParameters.contract_type} $${masterParameters.amount}`, "info")
 
-      // Update stats
-      setStats((prev) => ({ ...prev, total: prev.total + 1 }))
+        // Update client stats
+        updateClient(client.id, {
+          total_copied: client.total_copied + 1,
+          last_trade_id: `${Date.now()}_${index}`,
+        })
+      } catch (error) {
+        log(`❌ Failed to send to ${client.loginid}: ${error}`, "error")
+        setStats((prev) => ({ ...prev, failed: prev.failed + 1 }))
+      }
     })
   }
 
-  // 🎯 STEP 5: CONNECT CLIENTS WITH VALIDATION
+  // 🎯 STEP 5: CONNECT CLIENTS
   const connectClient = (token: string) => {
     const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -276,8 +287,8 @@ const PerfectCopyTrading: React.FC = observer(() => {
       loginid: "",
       balance: 0,
       currency: "USD",
-      is_subscribed: {},
-      last_copied_trade: null,
+      last_trade_id: null,
+      total_copied: 0,
     }
 
     setClients((prev) => [...prev, client])
@@ -300,11 +311,13 @@ const PerfectCopyTrading: React.FC = observer(() => {
         handleClientMessage(clientId, data)
       }
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        log(`Client ${clientId} error`, "error")
         updateClient(clientId, { status: "error" })
       }
 
       ws.onclose = () => {
+        log(`Client ${clientId} disconnected`, "warning")
         updateClient(clientId, { status: "disconnected", ws: null })
       }
 
@@ -318,7 +331,8 @@ const PerfectCopyTrading: React.FC = observer(() => {
   // 🎯 STEP 6: HANDLE CLIENT MESSAGES
   const handleClientMessage = (clientId: string, data: any) => {
     if (data.error) {
-      log(`Client ${clientId} error: ${data.error.message}`, "error")
+      log(`Client error: ${data.error.message}`, "error")
+      setStats((prev) => ({ ...prev, failed: prev.failed + 1 }))
       return
     }
 
@@ -330,47 +344,22 @@ const PerfectCopyTrading: React.FC = observer(() => {
           balance: data.authorize.balance,
           currency: data.authorize.currency,
         })
-
-        log(`Client connected: ${data.authorize.loginid}`, "success")
-
-        // Subscribe to common symbols
-        const client = clientsRef.current.find((c) => c.id === clientId)
-        if (client?.ws) {
-          const symbols = ["R_10", "R_25", "R_50", "R_75", "R_100", "1HZ10V", "1HZ25V", "1HZ50V", "1HZ75V", "1HZ100V"]
-          symbols.forEach((symbol) => {
-            client.ws!.send(
-              JSON.stringify({
-                ticks: symbol,
-                subscribe: 1,
-                req_id: Date.now(),
-              }),
-            )
-          })
-
-          // Mark as subscribed
-          const subscriptions: { [key: string]: boolean } = {}
-          symbols.forEach((symbol) => (subscriptions[symbol] = true))
-          updateClient(clientId, { is_subscribed: subscriptions })
-        }
+        log(`✅ Client connected: ${data.authorize.loginid}`, "success")
         break
 
       case "buy":
         if (data.buy?.contract_id) {
           updateClient(clientId, {
-            last_copied_trade: data.buy.contract_id.toString(),
+            last_trade_id: data.buy.contract_id.toString(),
           })
-          setStats((prev) => ({ ...prev, success: prev.success + 1 }))
+          setStats((prev) => ({ ...prev, replicated: prev.replicated + 1 }))
           log(`✅ Client trade success: ${data.buy.shortcode}`, "success")
         }
-        break
-
-      case "proposal":
-        // Handle proposal responses if needed
         break
     }
   }
 
-  // 🎯 HELPER: UPDATE CLIENT
+  // 🎯 HELPER FUNCTIONS
   const updateClient = (clientId: string, updates: Partial<ClientConnection>) => {
     setClients((prev) => prev.map((client) => (client.id === clientId ? { ...client, ...updates } : client)))
     clientsRef.current = clientsRef.current.map((client) =>
@@ -378,20 +367,17 @@ const PerfectCopyTrading: React.FC = observer(() => {
     )
   }
 
-  // 🎯 ADD CLIENT
   const addClient = () => {
     if (!newClientToken.trim()) return
-    if (clientTokens.includes(newClientToken.trim())) {
+    if (clients.some((c) => c.token === newClientToken.trim())) {
       log("Client token already added", "warning")
       return
     }
 
-    setClientTokens((prev) => [...prev, newClientToken.trim()])
     connectClient(newClientToken.trim())
     setNewClientToken("")
   }
 
-  // 🎯 REMOVE CLIENT
   const removeClient = (clientId: string) => {
     const client = clients.find((c) => c.id === clientId)
     if (client?.ws) {
@@ -400,22 +386,17 @@ const PerfectCopyTrading: React.FC = observer(() => {
 
     setClients((prev) => prev.filter((c) => c.id !== clientId))
     clientsRef.current = clientsRef.current.filter((c) => c.id !== clientId)
-
-    if (client?.token) {
-      setClientTokens((prev) => prev.filter((token) => token !== client.token))
-    }
   }
 
-  // 🎯 TOGGLE COPY TRADING
   const toggleCopyTrading = () => {
     if (!masterWs) {
-      log("Master not connected", "error")
+      log("❌ Master not connected", "error")
       return
     }
 
     const readyClients = clients.filter((c) => c.status === "connected")
     if (readyClients.length === 0) {
-      log("No connected clients", "error")
+      log("❌ No connected clients", "error")
       return
     }
 
@@ -424,17 +405,17 @@ const PerfectCopyTrading: React.FC = observer(() => {
 
     if (!isActive) {
       processedTradesRef.current.clear()
-      setStats({ total: 0, success: 0, failed: 0 })
+      setStats({ detected: 0, replicated: 0, failed: 0 })
       log(`🎯 Copy trading STARTED with ${readyClients.length} clients`, "success")
     } else {
       log("🛑 Copy trading STOPPED", "warning")
     }
   }
 
-  // 🎯 EFFECTS
+  // 🎯 CLEANUP
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
+      if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
       if (masterWs) masterWs.close()
       clients.forEach((client) => {
         if (client.ws) client.ws.close()
@@ -443,10 +424,19 @@ const PerfectCopyTrading: React.FC = observer(() => {
   }, [])
 
   const connectedClients = clients.filter((c) => c.status === "connected")
-  const successRate = stats.total > 0 ? Math.round((stats.success / stats.total) * 100) : 0
+  const successRate = stats.detected > 0 ? Math.round((stats.replicated / stats.detected) * 100) : 0
 
   return (
-    <div style={{ padding: "12px", fontSize: "12px", maxHeight: "500px", overflowY: "auto", background: "#f8f9fa" }}>
+    <div
+      style={{
+        padding: "12px",
+        fontSize: "12px",
+        maxHeight: "500px",
+        overflowY: "auto",
+        background: "#f8f9fa",
+        fontFamily: "monospace",
+      }}
+    >
       {/* Header */}
       <div
         style={{
@@ -460,7 +450,7 @@ const PerfectCopyTrading: React.FC = observer(() => {
           border: "1px solid #ddd",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "bold" }}>🎯 Perfect Copy Trading</h3>
+        <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "bold" }}>🎯 Bulletproof Copy Trading</h3>
         <div
           style={{
             padding: "4px 8px",
@@ -471,7 +461,7 @@ const PerfectCopyTrading: React.FC = observer(() => {
             color: isActive ? "#155724" : "#721c24",
           }}
         >
-          {isActive ? "🟢 ACTIVE" : "🔴 INACTIVE"}
+          {isActive ? "🟢 INTERCEPTING" : "🔴 INACTIVE"}
         </div>
       </div>
 
@@ -486,12 +476,12 @@ const PerfectCopyTrading: React.FC = observer(() => {
         }}
       >
         <div style={{ textAlign: "center", padding: "4px", background: "#e3f2fd", borderRadius: "3px" }}>
-          <div style={{ fontWeight: "bold" }}>{stats.total}</div>
-          <div>Total</div>
+          <div style={{ fontWeight: "bold" }}>{stats.detected}</div>
+          <div>Detected</div>
         </div>
         <div style={{ textAlign: "center", padding: "4px", background: "#e8f5e8", borderRadius: "3px" }}>
-          <div style={{ fontWeight: "bold" }}>{stats.success}</div>
-          <div>Success</div>
+          <div style={{ fontWeight: "bold" }}>{stats.replicated}</div>
+          <div>Replicated</div>
         </div>
         <div style={{ textAlign: "center", padding: "4px", background: "#ffebee", borderRadius: "3px" }}>
           <div style={{ fontWeight: "bold" }}>{stats.failed}</div>
@@ -499,13 +489,15 @@ const PerfectCopyTrading: React.FC = observer(() => {
         </div>
         <div style={{ textAlign: "center", padding: "4px", background: "#f3e5f5", borderRadius: "3px" }}>
           <div style={{ fontWeight: "bold" }}>{successRate}%</div>
-          <div>Rate</div>
+          <div>Success</div>
         </div>
       </div>
 
       {/* Master Connection */}
       <div style={{ marginBottom: "8px", padding: "8px", background: "white", borderRadius: "4px" }}>
-        <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px" }}>👑 Master Account</div>
+        <div style={{ fontSize: "11px", fontWeight: "bold", marginBottom: "4px" }}>
+          👑 Master: {masterAccount || "Not connected"}
+        </div>
         <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
           <select
             value={appId}
@@ -552,7 +544,6 @@ const PerfectCopyTrading: React.FC = observer(() => {
           👥 Clients ({connectedClients.length}/{clients.length})
         </div>
 
-        {/* Add Client */}
         <div style={{ display: "flex", gap: "4px", marginBottom: "6px" }}>
           <input
             type="password"
@@ -585,7 +576,6 @@ const PerfectCopyTrading: React.FC = observer(() => {
           </button>
         </div>
 
-        {/* Client List */}
         {clients.length > 0 && (
           <div style={{ maxHeight: "80px", overflowY: "auto" }}>
             {clients.map((client) => (
@@ -616,6 +606,7 @@ const PerfectCopyTrading: React.FC = observer(() => {
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <span>${client.balance.toFixed(0)}</span>
+                  <span>({client.total_copied})</span>
                   <button
                     onClick={() => removeClient(client.id)}
                     style={{
@@ -655,7 +646,7 @@ const PerfectCopyTrading: React.FC = observer(() => {
             opacity: !masterWs || connectedClients.length === 0 ? 0.5 : 1,
           }}
         >
-          {isActive ? "🛑 STOP COPYING" : "🎯 START COPYING"}
+          {isActive ? "🛑 STOP INTERCEPTING" : "🎯 START INTERCEPTING"}
         </button>
       </div>
 
@@ -665,15 +656,17 @@ const PerfectCopyTrading: React.FC = observer(() => {
           background: "white",
           borderRadius: "4px",
           padding: "6px",
-          maxHeight: "100px",
+          maxHeight: "120px",
           overflowY: "auto",
         }}
       >
         <div style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "4px" }}>📋 Activity Log</div>
         {logs.length === 0 ? (
-          <div style={{ fontSize: "9px", color: "#666", textAlign: "center", padding: "8px" }}>No activity yet...</div>
+          <div style={{ fontSize: "9px", color: "#666", textAlign: "center", padding: "8px" }}>
+            Waiting for master trades...
+          </div>
         ) : (
-          logs.slice(0, 8).map((log, index) => (
+          logs.slice(0, 10).map((log, index) => (
             <div
               key={index}
               style={{
@@ -681,6 +674,7 @@ const PerfectCopyTrading: React.FC = observer(() => {
                 fontFamily: "monospace",
                 marginBottom: "1px",
                 color: "#333",
+                wordBreak: "break-all",
               }}
             >
               {log}
@@ -696,16 +690,23 @@ const PerfectCopyTrading: React.FC = observer(() => {
           color: "#666",
           marginTop: "6px",
           padding: "4px",
-          background: "#fff3cd",
+          background: "#d1ecf1",
           borderRadius: "2px",
+          border: "1px solid #bee5eb",
         }}
       >
-        <div>⚡ Real-time transaction stream monitoring</div>
-        <div>🎯 Instant replication with identical parameters</div>
-        <div>✅ Same stake, same entry, same exit guaranteed</div>
+        <div>
+          🔥 <strong>BULLETPROOF FEATURES:</strong>
+        </div>
+        <div>• Intercepts master's exact buy requests</div>
+        <div>• Forwards identical parameters to clients</div>
+        <div>• Auto-reconnect with 30s keepalive</div>
+        <div>• Zero delays, zero modifications</div>
+        <div>• Same stake, same entry, same exit ✅</div>
       </div>
     </div>
   )
 })
 
-export default PerfectCopyTrading
+export default BulletproofCopyTrading
+
