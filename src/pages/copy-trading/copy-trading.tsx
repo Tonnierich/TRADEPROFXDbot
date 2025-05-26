@@ -50,7 +50,8 @@ const CopyTrading: React.FC = observer(() => {
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
   const isActiveRef = useRef(false)
-  const lastProcessedTradeRef = useRef<string>("")
+  const lastBalanceRef = useRef<number>(0)
+  const processedContractsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     masterWsRef.current = masterWs
@@ -123,11 +124,12 @@ const CopyTrading: React.FC = observer(() => {
       case "authorize":
         setMasterAccount(data.authorize.loginid)
         setMasterBalance(data.authorize.balance)
+        lastBalanceRef.current = data.authorize.balance
         addLog(`✅ Master authorized: ${data.authorize.loginid}`)
 
-        // Subscribe to critical streams for trade detection
+        // Subscribe to ALL critical streams for comprehensive trade detection
         if (masterWsRef.current) {
-          // Subscribe to portfolio changes (most reliable for trade detection)
+          // 1. Portfolio subscription - detects new contracts
           masterWsRef.current.send(
             JSON.stringify({
               portfolio: 1,
@@ -136,7 +138,7 @@ const CopyTrading: React.FC = observer(() => {
             }),
           )
 
-          // Subscribe to balance changes
+          // 2. Balance subscription - detects balance changes from trades
           masterWsRef.current.send(
             JSON.stringify({
               balance: 1,
@@ -145,7 +147,7 @@ const CopyTrading: React.FC = observer(() => {
             }),
           )
 
-          // Subscribe to transaction stream (catches all buy/sell activities)
+          // 3. Transaction subscription - catches buy/sell activities
           masterWsRef.current.send(
             JSON.stringify({
               transaction: 1,
@@ -154,55 +156,94 @@ const CopyTrading: React.FC = observer(() => {
             }),
           )
 
-          addLog("📡 Subscribed to master account streams")
+          // 4. Profit table subscription - monitors completed trades
+          masterWsRef.current.send(
+            JSON.stringify({
+              profit_table: 1,
+              subscribe: 1,
+              req_id: 5,
+            }),
+          )
+
+          addLog("📡 Subscribed to ALL master account streams")
         }
         break
 
       case "balance":
         const newBalance = data.balance.balance
-        if (newBalance !== masterBalance) {
+        const balanceChange = newBalance - lastBalanceRef.current
+
+        if (Math.abs(balanceChange) > 0.01 && isActiveRef.current) {
+          // Significant balance change detected - likely from a trade
           setMasterBalance(newBalance)
-          addLog(`💰 Master balance updated: $${newBalance.toFixed(2)}`)
+          lastBalanceRef.current = newBalance
+
+          if (balanceChange < 0) {
+            // Balance decreased - new trade executed
+            addLog(`💸 TRADE DETECTED: Balance decreased by $${Math.abs(balanceChange).toFixed(2)}`)
+            addLog(`💰 Master balance: $${lastBalanceRef.current.toFixed(2)} → $${newBalance.toFixed(2)}`)
+
+            // Get recent portfolio to find the new trade
+            if (masterWsRef.current) {
+              masterWsRef.current.send(
+                JSON.stringify({
+                  portfolio: 1,
+                  req_id: 6,
+                }),
+              )
+            }
+          } else {
+            addLog(`💰 Master balance updated: $${newBalance.toFixed(2)}`)
+          }
         }
         break
 
       case "portfolio":
-        // Portfolio changes indicate new trades
         if (data.portfolio && data.portfolio.contracts && isActiveRef.current) {
           const contracts = data.portfolio.contracts
 
-          // Look for new contracts (recently opened)
+          // Look for new contracts (not yet processed)
           contracts.forEach((contract: any) => {
             const contractId = contract.contract_id.toString()
 
-            // Skip if we already processed this trade
-            if (lastProcessedTradeRef.current === contractId) {
-              return
-            }
+            if (!processedContractsRef.current.has(contractId)) {
+              // Check if this is a recent trade (within last 2 minutes)
+              const contractTime = new Date(contract.date_start * 1000)
+              const now = new Date()
+              const timeDiff = now.getTime() - contractTime.getTime()
 
-            // Check if this is a new trade (within last 60 seconds)
-            const contractTime = new Date(contract.date_start * 1000)
-            const now = new Date()
-            const timeDiff = now.getTime() - contractTime.getTime()
+              if (timeDiff < 120000 && contract.contract_type) {
+                processedContractsRef.current.add(contractId)
+                addLog(`🎯 NEW CONTRACT FOUND: ${contract.contract_type} on ${contract.symbol}`)
+                addLog(`📋 Contract ID: ${contractId}`)
 
-            if (timeDiff < 60000 && contract.contract_type) {
-              lastProcessedTradeRef.current = contractId
-              addLog(`🎯 NEW TRADE DETECTED: ${contract.contract_type} on ${contract.symbol}`)
+                // Extract and replicate trade details
+                const tradeDetails: TradeDetails = {
+                  contract_type: contract.contract_type,
+                  symbol: contract.symbol,
+                  amount: contract.buy_price,
+                  duration: contract.duration || 5,
+                  duration_unit: contract.duration_unit || "t",
+                  barrier: contract.barrier,
+                  barrier2: contract.barrier2,
+                  prediction: contract.prediction,
+                  basis: "stake",
+                  currency: contract.currency || "USD",
+                }
 
-              // Get full contract details and replicate
-              getContractDetailsAndReplicate(contract)
+                addLog(`📤 Replicating: ${JSON.stringify(tradeDetails)}`)
+                replicateTradeToClients(tradeDetails)
+              }
             }
           })
         }
         break
 
       case "transaction":
-        // Transaction stream catches buy activities
         if (data.transaction && data.transaction.action === "buy" && isActiveRef.current) {
           const transaction = data.transaction
-          addLog(`💳 Transaction detected: ${transaction.contract_type} - $${transaction.amount}`)
+          addLog(`💳 TRANSACTION: ${transaction.contract_type} - $${transaction.amount}`)
 
-          // Extract trade details from transaction
           const tradeDetails: TradeDetails = {
             contract_type: transaction.contract_type,
             symbol: transaction.symbol,
@@ -220,13 +261,35 @@ const CopyTrading: React.FC = observer(() => {
         }
         break
 
+      case "profit_table":
+        if (data.profit_table && data.profit_table.transactions && isActiveRef.current) {
+          // Monitor profit table for new trades
+          const transactions = data.profit_table.transactions
+          transactions.forEach((transaction: any) => {
+            const contractId = transaction.contract_id.toString()
+
+            if (!processedContractsRef.current.has(contractId)) {
+              const transactionTime = new Date(transaction.purchase_time * 1000)
+              const now = new Date()
+              const timeDiff = now.getTime() - transactionTime.getTime()
+
+              if (timeDiff < 60000) {
+                // Recent transaction
+                processedContractsRef.current.add(contractId)
+                addLog(`📊 PROFIT TABLE: New transaction ${transaction.contract_type}`)
+              }
+            }
+          })
+        }
+        break
+
       case "buy":
-        // Direct buy response from master (when master executes trade)
+        // Direct buy response from master
         if (data.buy && isActiveRef.current) {
           const buyData = data.buy
           const echoReq = data.echo_req
 
-          addLog(`🚀 Master trade executed: ${buyData.contract_id}`)
+          addLog(`🚀 DIRECT BUY: ${buyData.contract_id}`)
 
           const tradeDetails: TradeDetails = {
             contract_type: echoReq.contract_type,
@@ -245,25 +308,6 @@ const CopyTrading: React.FC = observer(() => {
         }
         break
     }
-  }
-
-  const getContractDetailsAndReplicate = (contract: any) => {
-    // Extract comprehensive trade details from portfolio contract
-    const tradeDetails: TradeDetails = {
-      contract_type: contract.contract_type,
-      symbol: contract.symbol,
-      amount: contract.buy_price,
-      duration: contract.duration || 5,
-      duration_unit: contract.duration_unit || "t",
-      barrier: contract.barrier,
-      barrier2: contract.barrier2,
-      prediction: contract.prediction,
-      basis: "stake",
-      currency: contract.currency || "USD",
-    }
-
-    addLog(`📋 Extracted trade details: ${JSON.stringify(tradeDetails)}`)
-    replicateTradeToClients(tradeDetails)
   }
 
   const addClient = async () => {
@@ -380,10 +424,10 @@ const CopyTrading: React.FC = observer(() => {
               JSON.stringify({
                 buy: data.proposal.id,
                 price: data.proposal.ask_price,
-                req_id: `client_${clientId}_buy`,
+                req_id: Math.floor(Math.random() * 1000000),
               }),
             )
-            addLog(`💸 Executing buy for client ${clientId} with proposal ${data.proposal.id}`)
+            addLog(`💸 Executing buy for client ${clientId} - Proposal: ${data.proposal.id}`)
           }
         }
         break
@@ -416,7 +460,7 @@ const CopyTrading: React.FC = observer(() => {
     }
 
     addLog(`📤 REPLICATING TRADE to ${connectedClients.length} clients`)
-    addLog(`📋 Trade details: ${tradeDetails.contract_type} on ${tradeDetails.symbol}`)
+    addLog(`📋 Trade: ${tradeDetails.contract_type} on ${tradeDetails.symbol} - $${tradeDetails.amount}`)
 
     connectedClients.forEach((client, index) => {
       setTimeout(() => {
@@ -463,7 +507,7 @@ const CopyTrading: React.FC = observer(() => {
           addLog(`❌ Failed to replicate trade to client ${client.id}`)
           console.error(`Replication error for client ${client.id}:`, error)
         }
-      }, index * 100) // Stagger requests to avoid rate limiting
+      }, index * 200) // Increased delay to avoid rate limiting
     })
   }
 
@@ -509,7 +553,26 @@ const CopyTrading: React.FC = observer(() => {
     }
 
     setIsActive(!isActive)
-    addLog(isActive ? "⏹️ COPY TRADING STOPPED" : "▶️ COPY TRADING STARTED - Monitoring master trades...")
+    if (!isActive) {
+      // Starting copy trading
+      addLog("▶️ COPY TRADING STARTED - Monitoring ALL master trades...")
+      addLog("🔍 Watching: Balance changes, Portfolio updates, Transactions, Profit table")
+
+      // Clear processed contracts when starting
+      processedContractsRef.current.clear()
+
+      // Get initial portfolio state
+      if (masterWsRef.current) {
+        masterWsRef.current.send(
+          JSON.stringify({
+            portfolio: 1,
+            req_id: 7,
+          }),
+        )
+      }
+    } else {
+      addLog("⏹️ COPY TRADING STOPPED")
+    }
   }
 
   const syncClients = () => {
@@ -687,7 +750,7 @@ const CopyTrading: React.FC = observer(() => {
             {logs.length === 0 ? (
               <div className="ct-no-logs">No activity yet...</div>
             ) : (
-              logs.slice(0, 20).map((log, index) => (
+              logs.slice(0, 25).map((log, index) => (
                 <div key={index} className="ct-log-entry">
                   {log}
                 </div>
@@ -729,3 +792,4 @@ const CopyTrading: React.FC = observer(() => {
 })
 
 export default CopyTrading
+
