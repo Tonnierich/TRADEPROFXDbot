@@ -212,6 +212,36 @@ const CopyTrading: React.FC = observer(() => {
             if (latestContract.barrier2) tradeParams.barrier2 = latestContract.barrier2
             if (latestContract.prediction !== undefined) tradeParams.prediction = latestContract.prediction
 
+            // CRITICAL FIX: For digit contracts, ensure prediction is included
+            if (
+              latestContract.contract_type &&
+              (latestContract.contract_type.includes("DIGIT") ||
+                latestContract.contract_type.includes("MATCH") ||
+                latestContract.contract_type.includes("DIFF"))
+            ) {
+              // If prediction is missing, try to extract from contract details
+              if (tradeParams.prediction === undefined) {
+                // Try to get prediction from contract shortcode or other fields
+                if (latestContract.shortcode) {
+                  const shortcodeParts = latestContract.shortcode.split("_")
+                  const predictionPart = shortcodeParts.find((part) => /^\d$/.test(part))
+                  if (predictionPart) {
+                    tradeParams.prediction = Number.parseInt(predictionPart)
+                    addLog(`Extracted prediction from shortcode: ${tradeParams.prediction}`, "info")
+                  }
+                }
+
+                // If still no prediction, use a default based on contract type
+                if (tradeParams.prediction === undefined) {
+                  tradeParams.prediction = latestContract.contract_type.includes("UNDER") ? 4 : 6
+                  addLog(
+                    `Using default prediction for ${latestContract.contract_type}: ${tradeParams.prediction}`,
+                    "warning",
+                  )
+                }
+              }
+            }
+
             addLog(`Replicating trade: ${JSON.stringify(tradeParams)}`, "info")
             replicateTradeToClients(tradeParams)
           }
@@ -411,7 +441,22 @@ const CopyTrading: React.FC = observer(() => {
           // Add optional parameters
           if (tradeParams.barrier) proposalRequest.barrier = tradeParams.barrier
           if (tradeParams.barrier2) proposalRequest.barrier2 = tradeParams.barrier2
-          if (tradeParams.prediction !== undefined) proposalRequest.prediction = tradeParams.prediction
+          if (tradeParams.prediction !== undefined) {
+            proposalRequest.prediction = tradeParams.prediction
+            addLog(`Including prediction in proposal: ${tradeParams.prediction}`)
+          }
+
+          // Additional validation for digit contracts
+          if (
+            tradeParams.contract_type &&
+            (tradeParams.contract_type.includes("DIGIT") ||
+              tradeParams.contract_type.includes("MATCH") ||
+              tradeParams.contract_type.includes("DIFF")) &&
+            tradeParams.prediction === undefined
+          ) {
+            addLog(`ERROR: Digit contract ${tradeParams.contract_type} missing prediction parameter`, "error")
+            return
+          }
 
           addLog(`Sending proposal to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
           console.log(`📤 Proposal for client ${client.id}:`, proposalRequest)
