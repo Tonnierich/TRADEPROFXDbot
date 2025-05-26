@@ -3,7 +3,6 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { observer } from "mobx-react-lite"
-import "./copy-trading.scss"
 
 interface ClientConnection {
   id: string
@@ -12,9 +11,7 @@ interface ClientConnection {
   status: "connecting" | "connected" | "disconnected" | "error"
   balance: number
   accountInfo: any
-  lastTrade: any
   totalCopiedTrades: number
-  totalProfit: number
 }
 
 interface TradeParams {
@@ -28,226 +25,112 @@ interface TradeParams {
   barrier?: string
   barrier2?: string
   prediction?: number
-  proposal_id?: string
-  ask_price?: number
 }
 
-const COPYABLE_CONTRACTS = [
-  "CALL",
-  "PUT",
-  "DIGITOVER",
-  "DIGITUNDER",
-  "DIGITMATCH",
-  "DIGITDIFF",
-  "HIGHER",
-  "LOWER",
-  "ONETOUCH",
-  "NOTOUCH",
-  "EXPIRYRANGE",
-  "EXPIRYMISS",
-]
+const COPYABLE_CONTRACTS = ["CALL", "PUT", "DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF", "HIGHER", "LOWER"]
 
 const CopyTrading: React.FC = observer(() => {
-  const loadSavedData = () => {
-    try {
-      return {
-        savedMasterToken: localStorage.getItem("copytrading_master_token") || "",
-        savedClients: JSON.parse(localStorage.getItem("copytrading_clients") || "[]"),
-        savedSettings: JSON.parse(
-          localStorage.getItem("copytrading_settings") ||
-            '{"copyRatio":1,"maxAmount":100,"minAmount":1,"exactCopy":true}',
-        ),
-        savedIsDemo: localStorage.getItem("copytrading_is_demo") === "true",
-      }
-    } catch {
-      return {
-        savedMasterToken: "",
-        savedClients: [],
-        savedSettings: { copyRatio: 1, maxAmount: 100, minAmount: 1, exactCopy: true },
-        savedIsDemo: true,
-      }
-    }
-  }
-
-  const { savedMasterToken, savedClients, savedSettings, savedIsDemo } = loadSavedData()
-
   const [isActive, setIsActive] = useState(false)
   const [clientToken, setClientToken] = useState("")
-  const [masterToken, setMasterToken] = useState(savedMasterToken)
+  const [masterToken, setMasterToken] = useState(localStorage.getItem("ct_master") || "")
   const [clients, setClients] = useState<ClientConnection[]>([])
   const [masterWs, setMasterWs] = useState<WebSocket | null>(null)
   const [masterBalance, setMasterBalance] = useState(0)
   const [masterAccount, setMasterAccount] = useState("")
-  const [isDemo, setIsDemo] = useState(savedIsDemo)
+  const [isDemo, setIsDemo] = useState(true)
   const [logs, setLogs] = useState<string[]>([])
   const [showLogs, setShowLogs] = useState(false)
-  const [copySettings, setCopySettings] = useState(savedSettings)
-  const [totalMasterTrades, setTotalMasterTrades] = useState(0)
-  const [totalCopiedTrades, setTotalCopiedTrades] = useState(0)
-  const [skippedTrades, setSkippedTrades] = useState(0)
+  const [exactCopy, setExactCopy] = useState(true)
+  const [copyRatio, setCopyRatio] = useState(1)
+  const [stats, setStats] = useState({ master: 0, copied: 0, skipped: 0 })
   const [appId, setAppId] = useState("75760")
 
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
   const isActiveRef = useRef(false)
-  const lastBalanceRef = useRef<number>(0)
-  const processedContractsRef = useRef<Set<string>>(new Set())
-  const pendingProposalsRef = useRef<Map<string, TradeParams>>(new Map())
-  const portfolioPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const processedRef = useRef<Set<string>>(new Set())
+  const pollingRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-    localStorage.setItem("copytrading_master_token", masterToken)
+    localStorage.setItem("ct_master", masterToken)
   }, [masterToken])
-  useEffect(() => {
-    localStorage.setItem("copytrading_clients", JSON.stringify(clients.map((c) => ({ token: c.token, id: c.id }))))
-  }, [clients])
-  useEffect(() => {
-    localStorage.setItem("copytrading_settings", JSON.stringify(copySettings))
-  }, [copySettings])
-  useEffect(() => {
-    localStorage.setItem("copytrading_is_demo", isDemo.toString())
-  }, [isDemo])
-
-  useEffect(() => {
-    if (savedClients.length > 0) {
-      setClients(
-        savedClients.map((sc: any) => ({
-          id: sc.id,
-          token: sc.token,
-          ws: null,
-          status: "disconnected" as const,
-          balance: 0,
-          accountInfo: null,
-          lastTrade: null,
-          totalCopiedTrades: 0,
-          totalProfit: 0,
-        })),
-      )
-    }
-  }, [])
 
   useEffect(() => {
     masterWsRef.current = masterWs
-  }, [masterWs])
-  useEffect(() => {
     clientsRef.current = clients
-  }, [clients])
-  useEffect(() => {
     isActiveRef.current = isActive
-  }, [isActive])
+  }, [masterWs, clients, isActive])
 
-  const addLog = (message: string, type: "info" | "success" | "error" | "warning" = "info") => {
-    const emoji = type === "success" ? "✅" : type === "error" ? "❌" : type === "warning" ? "⚠️" : "ℹ️"
-    setLogs((prev) => [`${emoji} ${message}`, ...prev.slice(0, 19)])
+  const log = (msg: string, type = "info") => {
+    const emoji = type === "success" ? "✅" : type === "error" ? "❌" : "ℹ️"
+    setLogs((prev) => [`${emoji} ${msg}`, ...prev.slice(0, 4)])
   }
 
-  const startPortfolioPolling = () => {
-    if (portfolioPollingRef.current) clearInterval(portfolioPollingRef.current)
-    portfolioPollingRef.current = setInterval(() => {
+  const startPolling = () => {
+    if (pollingRef.current) clearInterval(pollingRef.current)
+    pollingRef.current = setInterval(() => {
       if (masterWsRef.current && isActiveRef.current) {
-        masterWsRef.current.send(JSON.stringify({ portfolio: 1, req_id: Math.floor(Math.random() * 1000000) }))
+        masterWsRef.current.send(JSON.stringify({ portfolio: 1, req_id: Date.now() }))
       }
-    }, 2000)
+    }, 3000)
   }
 
-  const stopPortfolioPolling = () => {
-    if (portfolioPollingRef.current) {
-      clearInterval(portfolioPollingRef.current)
-      portfolioPollingRef.current = null
-    }
-  }
-
-  const connectMaster = async () => {
-    if (!masterToken) return addLog("Enter master token", "error")
+  const connectMaster = () => {
+    if (!masterToken) return log("Enter master token", "error")
     try {
       const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${appId}`)
       ws.onopen = () => ws.send(JSON.stringify({ authorize: masterToken, req_id: 1 }))
-      ws.onmessage = (event) => handleMasterMessage(JSON.parse(event.data))
-      ws.onerror = () => addLog("Master connection error", "error")
-      ws.onclose = () => {
-        setMasterWs(null)
-        stopPortfolioPolling()
-      }
+      ws.onmessage = (e) => handleMasterMsg(JSON.parse(e.data))
+      ws.onerror = () => log("Master error", "error")
+      ws.onclose = () => setMasterWs(null)
       setMasterWs(ws)
     } catch {
-      addLog("Failed to connect master", "error")
+      log("Connect failed", "error")
     }
   }
 
-  const extractTradeParamsFromContract = (contract: any): TradeParams | null => {
-    if (!contract.contract_type || !contract.symbol || !contract.buy_price) return null
-    if (!COPYABLE_CONTRACTS.includes(contract.contract_type)) {
-      setSkippedTrades((prev) => prev + 1)
-      return null
-    }
-
-    const params: TradeParams = {
-      contract_type: contract.contract_type,
-      symbol: contract.symbol,
-      amount: Math.abs(contract.buy_price),
-      duration: contract.duration || 5,
-      duration_unit: contract.duration_unit || "t",
-      basis: "stake",
-      currency: contract.currency || "USD",
-    }
-
-    if (contract.barrier) params.barrier = contract.barrier.toString()
-    if (contract.barrier2) params.barrier2 = contract.barrier2.toString()
-    if (contract.prediction !== undefined) params.prediction = contract.prediction
-
-    return params
-  }
-
-  const handleMasterMessage = (data: any) => {
-    if (data.error) return addLog(`Master error: ${data.error.message}`, "error")
+  const handleMasterMsg = (data: any) => {
+    if (data.error) return log(data.error.message, "error")
 
     switch (data.msg_type) {
       case "authorize":
         setMasterAccount(data.authorize.loginid)
         setMasterBalance(data.authorize.balance)
-        lastBalanceRef.current = data.authorize.balance
-        addLog(`Master: ${data.authorize.loginid} ($${data.authorize.balance})`, "success")
-
+        log(`Master: ${data.authorize.loginid}`, "success")
         if (masterWsRef.current) {
           masterWsRef.current.send(JSON.stringify({ portfolio: 1, req_id: 2 }))
           masterWsRef.current.send(JSON.stringify({ balance: 1, subscribe: 1, req_id: 3 }))
-          masterWsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1, req_id: 4 }))
-        }
-        break
-
-      case "balance":
-        const newBalance = data.balance.balance
-        const balanceChange = newBalance - lastBalanceRef.current
-        if (Math.abs(balanceChange) > 0.01 && isActiveRef.current) {
-          setMasterBalance(newBalance)
-          lastBalanceRef.current = newBalance
-          if (balanceChange < 0 && masterWsRef.current) {
-            masterWsRef.current.send(JSON.stringify({ portfolio: 1, req_id: 5 }))
-          }
         }
         break
 
       case "portfolio":
         if (data.portfolio?.contracts && isActiveRef.current) {
-          const currentTime = Date.now()
-          const newContracts = data.portfolio.contracts.filter((contract: any) => {
-            const contractTime = new Date(contract.date_start * 1000).getTime()
-            const timeDiff = currentTime - contractTime
+          const newContracts = data.portfolio.contracts.filter((c: any) => {
+            const timeDiff = Date.now() - new Date(c.date_start * 1000).getTime()
             return (
-              timeDiff < 30000 &&
-              timeDiff > 0 &&
-              !processedContractsRef.current.has(contract.contract_id.toString()) &&
-              contract.buy_price > 0
+              timeDiff < 30000 && timeDiff > 0 && !processedRef.current.has(c.contract_id.toString()) && c.buy_price > 0
             )
           })
 
           newContracts.forEach((contract: any) => {
-            processedContractsRef.current.add(contract.contract_id.toString())
-            setTotalMasterTrades((prev) => prev + 1)
-            const tradeParams = extractTradeParamsFromContract(contract)
-            if (tradeParams) {
-              addLog(`Copying ${contract.contract_type} $${contract.buy_price}`, "success")
-              replicateExactTrade(tradeParams)
+            processedRef.current.add(contract.contract_id.toString())
+            setStats((prev) => ({ ...prev, master: prev.master + 1 }))
+
+            if (COPYABLE_CONTRACTS.includes(contract.contract_type)) {
+              log(`Copying ${contract.contract_type}`, "success")
+              replicateTrade({
+                contract_type: contract.contract_type,
+                symbol: contract.symbol,
+                amount: exactCopy ? contract.buy_price : contract.buy_price * copyRatio,
+                duration: contract.duration || 5,
+                duration_unit: contract.duration_unit || "t",
+                basis: "stake",
+                currency: contract.currency || "USD",
+                barrier: contract.barrier?.toString(),
+                prediction: contract.prediction,
+              })
+            } else {
+              setStats((prev) => ({ ...prev, skipped: prev.skipped + 1 }))
             }
           })
         }
@@ -256,330 +139,273 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   const addClient = () => {
-    if (!clientToken.trim()) return
-    if (clients.find((c) => c.token === clientToken.trim())) return
-
-    const newClient: ClientConnection = {
-      id: `client_${Date.now()}`,
+    if (!clientToken.trim() || clients.find((c) => c.token === clientToken.trim())) return
+    const client: ClientConnection = {
+      id: `c${Date.now()}`,
       token: clientToken.trim(),
       ws: null,
       status: "connecting",
       balance: 0,
       accountInfo: null,
-      lastTrade: null,
       totalCopiedTrades: 0,
-      totalProfit: 0,
     }
-    setClients((prev) => [...prev, newClient])
+    setClients((prev) => [...prev, client])
     setClientToken("")
-    connectClient(newClient)
+    connectClient(client)
   }
 
   const connectClient = (client: ClientConnection) => {
     try {
       const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${appId}`)
-      ws.onopen = () => ws.send(JSON.stringify({ authorize: client.token, req_id: Math.random() * 1000000 }))
-      ws.onmessage = (event) => handleClientMessage(client.id, JSON.parse(event.data))
-      ws.onerror = () => updateClientStatus(client.id, "error")
-      ws.onclose = () => updateClientStatus(client.id, "disconnected")
+      ws.onopen = () => ws.send(JSON.stringify({ authorize: client.token, req_id: Date.now() }))
+      ws.onmessage = (e) => handleClientMsg(client.id, JSON.parse(e.data))
+      ws.onerror = () => updateClient(client.id, { status: "error" })
+      ws.onclose = () => updateClient(client.id, { status: "disconnected" })
       setClients((prev) => prev.map((c) => (c.id === client.id ? { ...c, ws } : c)))
     } catch {
-      updateClientStatus(client.id, "error")
+      updateClient(client.id, { status: "error" })
     }
   }
 
-  const handleClientMessage = (clientId: string, data: any) => {
+  const handleClientMsg = (id: string, data: any) => {
     if (data.error) return
-
     switch (data.msg_type) {
       case "authorize":
-        updateClient(clientId, { status: "connected", balance: data.authorize.balance, accountInfo: data.authorize })
+        updateClient(id, { status: "connected", balance: data.authorize.balance, accountInfo: data.authorize })
         break
       case "proposal":
         if (data.proposal?.id) {
-          const client = clientsRef.current.find((c) => c.id === clientId)
+          const client = clientsRef.current.find((c) => c.id === id)
           client?.ws?.send(
-            JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price, req_id: Math.random() * 1000000 }),
+            JSON.stringify({ buy: data.proposal.id, price: data.proposal.ask_price, req_id: Date.now() }),
           )
         }
         break
       case "buy":
         if (data.buy?.contract_id) {
-          updateClient(clientId, {
-            lastTrade: data.buy,
-            totalCopiedTrades: (clients.find((c) => c.id === clientId)?.totalCopiedTrades || 0) + 1,
-          })
-          setTotalCopiedTrades((prev) => prev + 1)
-          addLog(`Trade copied to ${clientId}`, "success")
+          updateClient(id, { totalCopiedTrades: (clients.find((c) => c.id === id)?.totalCopiedTrades || 0) + 1 })
+          setStats((prev) => ({ ...prev, copied: prev.copied + 1 }))
         }
         break
     }
   }
 
-  const updateClientStatus = (clientId: string, status: ClientConnection["status"]) => {
-    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, status } : c)))
+  const updateClient = (id: string, updates: Partial<ClientConnection>) => {
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)))
   }
 
-  const updateClient = (clientId: string, updates: Partial<ClientConnection>) => {
-    setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c)))
-  }
-
-  const replicateExactTrade = (tradeParams: TradeParams) => {
-    const connectedClients = clientsRef.current.filter((c) => c.status === "connected" && c.ws)
-    if (connectedClients.length === 0) return
-
-    connectedClients.forEach((client, index) => {
-      setTimeout(() => {
-        let amount = copySettings.exactCopy ? tradeParams.amount : tradeParams.amount * copySettings.copyRatio
-        if (!copySettings.exactCopy) {
-          amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
-        }
-
-        const proposalRequest: any = {
-          proposal: 1,
-          amount,
-          basis: tradeParams.basis,
-          contract_type: tradeParams.contract_type,
-          currency: tradeParams.currency,
-          symbol: tradeParams.symbol,
-          duration: tradeParams.duration,
-          duration_unit: tradeParams.duration_unit,
-          req_id: Math.random() * 1000000,
-        }
-
-        if (tradeParams.barrier) proposalRequest.barrier = tradeParams.barrier
-        if (tradeParams.barrier2) proposalRequest.barrier2 = tradeParams.barrier2
-        if (tradeParams.prediction !== undefined) proposalRequest.prediction = tradeParams.prediction
-
-        client.ws?.send(JSON.stringify(proposalRequest))
-      }, index * 100)
+  const replicateTrade = (params: TradeParams) => {
+    const connected = clientsRef.current.filter((c) => c.status === "connected" && c.ws)
+    connected.forEach((client) => {
+      const req = {
+        proposal: 1,
+        amount: Math.max(1, params.amount),
+        basis: params.basis,
+        contract_type: params.contract_type,
+        currency: params.currency,
+        symbol: params.symbol,
+        duration: params.duration,
+        duration_unit: params.duration_unit,
+        req_id: Date.now(),
+        ...(params.barrier && { barrier: params.barrier }),
+        ...(params.prediction !== undefined && { prediction: params.prediction }),
+      }
+      client.ws?.send(JSON.stringify(req))
     })
   }
 
-  const removeClient = (clientId: string) => {
-    const client = clients.find((c) => c.id === clientId)
-    if (client?.ws) client.ws.close()
-    setClients((prev) => prev.filter((c) => c.id !== clientId))
-  }
-
-  const toggleCopyTrading = () => {
-    if (!masterWs || clients.filter((c) => c.status === "connected").length === 0) return
-
+  const toggle = () => {
+    if (!masterWs || !clients.some((c) => c.status === "connected")) return
     setIsActive(!isActive)
     if (!isActive) {
-      processedContractsRef.current.clear()
-      startPortfolioPolling()
-      setTotalMasterTrades(0)
-      setTotalCopiedTrades(0)
-      setSkippedTrades(0)
+      processedRef.current.clear()
+      startPolling()
+      setStats({ master: 0, copied: 0, skipped: 0 })
     } else {
-      stopPortfolioPolling()
+      if (pollingRef.current) clearInterval(pollingRef.current)
     }
   }
 
+  const connectedCount = clients.filter((c) => c.status === "connected").length
+
   return (
-    <div style={{ padding: "0.5rem", fontSize: "0.7rem", maxWidth: "100%", background: "#f8f9fa" }}>
-      {/* Header */}
+    <div style={{ padding: "8px", fontSize: "11px", lineHeight: "1.2", maxHeight: "400px", overflowY: "auto" }}>
+      {/* Compact Header */}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          padding: "0.3rem",
+          marginBottom: "6px",
+          padding: "4px 8px",
           background: "white",
-          borderRadius: "0.3rem",
-          marginBottom: "0.5rem",
+          borderRadius: "4px",
+          border: "1px solid #ddd",
         }}
       >
-        <div style={{ display: "flex", gap: "0.2rem" }}>
+        <div style={{ display: "flex", gap: "4px" }}>
           <button
             style={{
-              padding: "0.2rem 0.5rem",
+              padding: "2px 6px",
+              fontSize: "10px",
               border: "1px solid #ddd",
-              borderRadius: "0.2rem",
+              borderRadius: "2px",
               background: isDemo ? "#007bff" : "white",
               color: isDemo ? "white" : "black",
-              fontSize: "0.7rem",
             }}
             onClick={() => setIsDemo(true)}
           >
-            📊 Demo
+            📊
           </button>
           <button
             style={{
-              padding: "0.2rem 0.5rem",
+              padding: "2px 6px",
+              fontSize: "10px",
               border: "1px solid #ddd",
-              borderRadius: "0.2rem",
+              borderRadius: "2px",
               background: !isDemo ? "#007bff" : "white",
               color: !isDemo ? "white" : "black",
-              fontSize: "0.7rem",
             }}
             onClick={() => setIsDemo(false)}
           >
-            💰 Real
+            💰
           </button>
         </div>
         <div
           style={{
-            padding: "0.2rem 0.5rem",
-            borderRadius: "0.2rem",
-            fontSize: "0.7rem",
+            padding: "2px 6px",
+            fontSize: "10px",
             fontWeight: "bold",
+            borderRadius: "2px",
             background: isActive ? "#d4edda" : "#f8d7da",
             color: isActive ? "#155724" : "#721c24",
           }}
         >
-          {isActive ? "🎯 ACTIVE" : "🔴 INACTIVE"}
+          {isActive ? "🎯 ON" : "🔴 OFF"}
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Ultra Compact Stats */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "0.3rem",
-          marginBottom: "0.5rem",
-          fontSize: "0.6rem",
+          gap: "3px",
+          marginBottom: "6px",
+          fontSize: "9px",
         }}
       >
-        <div style={{ textAlign: "center", padding: "0.3rem", background: "#e3f2fd", borderRadius: "0.2rem" }}>
-          <div style={{ fontWeight: "bold", fontSize: "0.8rem" }}>{totalMasterTrades}</div>
+        <div style={{ textAlign: "center", padding: "3px", background: "#e3f2fd", borderRadius: "2px" }}>
+          <div style={{ fontWeight: "bold" }}>{stats.master}</div>
           <div>Master</div>
         </div>
-        <div style={{ textAlign: "center", padding: "0.3rem", background: "#e8f5e8", borderRadius: "0.2rem" }}>
-          <div style={{ fontWeight: "bold", fontSize: "0.8rem" }}>{totalCopiedTrades}</div>
+        <div style={{ textAlign: "center", padding: "3px", background: "#e8f5e8", borderRadius: "2px" }}>
+          <div style={{ fontWeight: "bold" }}>{stats.copied}</div>
           <div>Copied</div>
         </div>
-        <div style={{ textAlign: "center", padding: "0.3rem", background: "#fff3e0", borderRadius: "0.2rem" }}>
-          <div style={{ fontWeight: "bold", fontSize: "0.8rem" }}>{skippedTrades}</div>
-          <div>Skipped</div>
+        <div style={{ textAlign: "center", padding: "3px", background: "#fff3e0", borderRadius: "2px" }}>
+          <div style={{ fontWeight: "bold" }}>{stats.skipped}</div>
+          <div>Skip</div>
         </div>
-        <div style={{ textAlign: "center", padding: "0.3rem", background: "#fce4ec", borderRadius: "0.2rem" }}>
-          <div style={{ fontWeight: "bold", fontSize: "0.8rem" }}>
-            {totalMasterTrades > 0 ? Math.round((totalCopiedTrades / totalMasterTrades) * 100) : 0}%
+        <div style={{ textAlign: "center", padding: "3px", background: "#fce4ec", borderRadius: "2px" }}>
+          <div style={{ fontWeight: "bold" }}>
+            {stats.master > 0 ? Math.round((stats.copied / stats.master) * 100) : 0}%
           </div>
-          <div>Success</div>
+          <div>Rate</div>
         </div>
       </div>
 
-      {/* App ID */}
-      <div style={{ background: "white", padding: "0.3rem", borderRadius: "0.3rem", marginBottom: "0.5rem" }}>
-        <div style={{ fontWeight: "bold", marginBottom: "0.2rem", fontSize: "0.7rem" }}>🔧 WebSocket</div>
+      {/* Inline Controls */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "6px", alignItems: "center" }}>
         <select
           value={appId}
           onChange={(e) => setAppId(e.target.value)}
+          style={{ fontSize: "9px", padding: "1px", width: "60px" }}
+        >
+          <option value="75760">75760</option>
+          <option value="1089">1089</option>
+        </select>
+        <input
+          type="password"
+          placeholder="Master Token"
+          value={masterToken}
+          onChange={(e) => setMasterToken(e.target.value)}
+          style={{ flex: 1, padding: "2px", fontSize: "9px", fontFamily: "monospace" }}
+        />
+        <button
+          onClick={connectMaster}
           style={{
-            width: "100%",
-            padding: "0.2rem",
-            fontSize: "0.6rem",
-            border: "1px solid #ddd",
-            borderRadius: "0.2rem",
+            padding: "2px 4px",
+            fontSize: "9px",
+            border: "none",
+            borderRadius: "2px",
+            background: masterWs ? "#28a745" : "#007bff",
+            color: "white",
           }}
         >
-          <option value="75760">app_id=75760 (Better Detection)</option>
-          <option value="1089">app_id=1089 (Default)</option>
-        </select>
+          {masterWs ? "✅" : "🔗"}
+        </button>
       </div>
 
-      {/* Master */}
-      <div style={{ background: "white", padding: "0.3rem", borderRadius: "0.3rem", marginBottom: "0.5rem" }}>
-        <div style={{ fontWeight: "bold", marginBottom: "0.2rem", fontSize: "0.7rem" }}>🎯 Master</div>
-        <div style={{ display: "flex", gap: "0.2rem", marginBottom: "0.2rem" }}>
-          <input
-            type="password"
-            placeholder="Master Token"
-            value={masterToken}
-            onChange={(e) => setMasterToken(e.target.value)}
-            style={{ flex: 1, padding: "0.2rem", fontSize: "0.6rem", border: "1px solid #ddd", borderRadius: "0.2rem" }}
-          />
-          <button
-            onClick={connectMaster}
-            style={{
-              padding: "0.2rem 0.4rem",
-              fontSize: "0.6rem",
-              border: "none",
-              borderRadius: "0.2rem",
-              background: masterWs ? "#28a745" : "#007bff",
-              color: "white",
-            }}
-          >
-            {masterWs ? "✅" : "🔗"}
-          </button>
+      {/* Master Info */}
+      {masterWs && (
+        <div
+          style={{
+            fontSize: "9px",
+            padding: "3px 6px",
+            background: "linear-gradient(90deg, #667eea, #764ba2)",
+            color: "white",
+            borderRadius: "2px",
+            marginBottom: "6px",
+            display: "flex",
+            justifyContent: "space-between",
+          }}
+        >
+          <span>{masterAccount}</span>
+          <span>${masterBalance.toFixed(0)}</span>
         </div>
-        {masterWs && (
-          <div style={{ fontSize: "0.6rem", color: "#666" }}>
-            {masterAccount} - ${masterBalance.toFixed(2)}
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Settings */}
-      <div style={{ background: "white", padding: "0.3rem", borderRadius: "0.3rem", marginBottom: "0.5rem" }}>
-        <div style={{ fontWeight: "bold", marginBottom: "0.2rem", fontSize: "0.7rem" }}>⚙️ Settings</div>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.6rem" }}>
-          <input
-            type="checkbox"
-            checked={copySettings.exactCopy}
-            onChange={(e) => setCopySettings((prev) => ({ ...prev, exactCopy: e.target.checked }))}
-          />
-          🎯 Exact Copy
+      {/* Settings Row */}
+      <div style={{ display: "flex", gap: "6px", alignItems: "center", marginBottom: "6px", fontSize: "9px" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: "2px" }}>
+          <input type="checkbox" checked={exactCopy} onChange={(e) => setExactCopy(e.target.checked)} />
+          Exact
         </label>
-        {!copySettings.exactCopy && (
-          <div style={{ display: "flex", gap: "0.2rem", marginTop: "0.2rem" }}>
-            <input
-              type="number"
-              min="0.1"
-              max="10"
-              step="0.1"
-              value={copySettings.copyRatio}
-              onChange={(e) => setCopySettings((prev) => ({ ...prev, copyRatio: Number.parseFloat(e.target.value) }))}
-              style={{
-                width: "40px",
-                padding: "0.1rem",
-                fontSize: "0.6rem",
-                border: "1px solid #ddd",
-                borderRadius: "0.2rem",
-              }}
-            />
-            <input
-              type="number"
-              min="1"
-              value={copySettings.maxAmount}
-              onChange={(e) => setCopySettings((prev) => ({ ...prev, maxAmount: Number.parseFloat(e.target.value) }))}
-              style={{
-                width: "40px",
-                padding: "0.1rem",
-                fontSize: "0.6rem",
-                border: "1px solid #ddd",
-                borderRadius: "0.2rem",
-              }}
-            />
-          </div>
+        {!exactCopy && (
+          <input
+            type="number"
+            min="0.1"
+            max="10"
+            step="0.1"
+            value={copyRatio}
+            onChange={(e) => setCopyRatio(Number.parseFloat(e.target.value))}
+            style={{ width: "30px", padding: "1px", fontSize: "9px" }}
+          />
         )}
       </div>
 
-      {/* Clients */}
-      <div style={{ background: "white", padding: "0.3rem", borderRadius: "0.3rem", marginBottom: "0.5rem" }}>
-        <div style={{ fontWeight: "bold", marginBottom: "0.2rem", fontSize: "0.7rem" }}>
-          👥 Clients ({clients.filter((c) => c.status === "connected").length}/{clients.length})
+      {/* Client Management */}
+      <div style={{ marginBottom: "6px" }}>
+        <div style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "3px" }}>
+          👥 Clients ({connectedCount}/{clients.length})
         </div>
-        <div style={{ display: "flex", gap: "0.2rem", marginBottom: "0.2rem" }}>
+        <div style={{ display: "flex", gap: "3px", marginBottom: "3px" }}>
           <input
             type="password"
             placeholder="Client Token"
             value={clientToken}
             onChange={(e) => setClientToken(e.target.value)}
-            style={{ flex: 1, padding: "0.2rem", fontSize: "0.6rem", border: "1px solid #ddd", borderRadius: "0.2rem" }}
+            style={{ flex: 1, padding: "2px", fontSize: "9px", fontFamily: "monospace" }}
             onKeyPress={(e) => e.key === "Enter" && addClient()}
           />
           <button
             onClick={addClient}
             style={{
-              padding: "0.2rem 0.4rem",
-              fontSize: "0.6rem",
+              padding: "2px 4px",
+              fontSize: "9px",
               border: "none",
-              borderRadius: "0.2rem",
+              borderRadius: "2px",
               background: "#007bff",
               color: "white",
             }}
@@ -588,8 +414,9 @@ const CopyTrading: React.FC = observer(() => {
           </button>
         </div>
 
+        {/* Client List */}
         {clients.length > 0 && (
-          <div style={{ maxHeight: "80px", overflowY: "auto" }}>
+          <div style={{ maxHeight: "60px", overflowY: "auto" }}>
             {clients.map((client) => (
               <div
                 key={client.id}
@@ -597,34 +424,32 @@ const CopyTrading: React.FC = observer(() => {
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  padding: "0.2rem",
+                  padding: "2px 4px",
                   background: "#f8f9fa",
-                  borderRadius: "0.2rem",
-                  marginBottom: "0.1rem",
-                  fontSize: "0.6rem",
+                  borderRadius: "2px",
+                  marginBottom: "2px",
+                  fontSize: "8px",
                 }}
               >
-                <div>
-                  <span>{client.accountInfo?.loginid || client.id.slice(-6)}</span>
-                  <span style={{ marginLeft: "0.2rem" }}>
-                    {client.status === "connected" ? "✅" : client.status === "connecting" ? "🔄" : "❌"}
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                  <span>{client.accountInfo?.loginid || client.id.slice(-4)}</span>
+                  <span>{client.status === "connected" ? "✅" : client.status === "connecting" ? "🔄" : "❌"}</span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.2rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
                   <span>${client.balance.toFixed(0)}</span>
                   <span>{client.totalCopiedTrades}</span>
                   <button
-                    onClick={() => removeClient(client.id)}
+                    onClick={() => setClients((prev) => prev.filter((c) => c.id !== client.id))}
                     style={{
-                      padding: "0.1rem 0.2rem",
-                      fontSize: "0.5rem",
+                      padding: "1px 2px",
+                      fontSize: "7px",
                       border: "none",
-                      borderRadius: "0.1rem",
+                      borderRadius: "1px",
                       background: "#dc3545",
                       color: "white",
                     }}
                   >
-                    🗑️
+                    ×
                   </button>
                 </div>
               </div>
@@ -633,32 +458,32 @@ const CopyTrading: React.FC = observer(() => {
         )}
       </div>
 
-      {/* Controls */}
-      <div style={{ display: "flex", gap: "0.2rem", marginBottom: "0.5rem" }}>
+      {/* Main Controls */}
+      <div style={{ display: "flex", gap: "3px", marginBottom: "6px" }}>
         <button
-          onClick={toggleCopyTrading}
+          onClick={toggle}
           style={{
             flex: 1,
-            padding: "0.3rem",
-            fontSize: "0.7rem",
+            padding: "4px",
+            fontSize: "10px",
             border: "none",
-            borderRadius: "0.2rem",
+            borderRadius: "3px",
             fontWeight: "bold",
             background: isActive ? "#dc3545" : "#28a745",
             color: "white",
-            opacity: !masterWs || clients.filter((c) => c.status === "connected").length === 0 ? 0.5 : 1,
+            opacity: !masterWs || connectedCount === 0 ? 0.5 : 1,
           }}
-          disabled={!masterWs || clients.filter((c) => c.status === "connected").length === 0}
+          disabled={!masterWs || connectedCount === 0}
         >
           {isActive ? "⏹️ Stop" : "🎯 Start"}
         </button>
         <button
           onClick={() => setShowLogs(!showLogs)}
           style={{
-            padding: "0.3rem 0.5rem",
-            fontSize: "0.7rem",
+            padding: "4px 6px",
+            fontSize: "10px",
             border: "1px solid #ddd",
-            borderRadius: "0.2rem",
+            borderRadius: "3px",
             background: "white",
           }}
         >
@@ -666,37 +491,34 @@ const CopyTrading: React.FC = observer(() => {
         </button>
       </div>
 
-      {/* Logs */}
+      {/* Compact Logs */}
       {showLogs && (
-        <div style={{ background: "white", padding: "0.3rem", borderRadius: "0.3rem", marginBottom: "0.5rem" }}>
-          <div style={{ fontWeight: "bold", marginBottom: "0.2rem", fontSize: "0.7rem" }}>📋 Logs</div>
-          <div
-            style={{
-              maxHeight: "100px",
-              overflowY: "auto",
-              background: "#f8f9fa",
-              padding: "0.2rem",
-              borderRadius: "0.2rem",
-            }}
-          >
-            {logs.length === 0 ? (
-              <div style={{ fontSize: "0.6rem", color: "#666", textAlign: "center" }}>No activity...</div>
-            ) : (
-              logs.slice(0, 10).map((log, index) => (
-                <div key={index} style={{ fontSize: "0.5rem", marginBottom: "0.1rem", fontFamily: "monospace" }}>
-                  {log}
-                </div>
-              ))
-            )}
-          </div>
+        <div
+          style={{
+            maxHeight: "50px",
+            overflowY: "auto",
+            background: "#f8f9fa",
+            padding: "3px",
+            borderRadius: "2px",
+            marginBottom: "6px",
+          }}
+        >
+          {logs.length === 0 ? (
+            <div style={{ fontSize: "8px", color: "#666", textAlign: "center" }}>No activity...</div>
+          ) : (
+            logs.slice(0, 5).map((log, i) => (
+              <div key={i} style={{ fontSize: "8px", fontFamily: "monospace", marginBottom: "1px" }}>
+                {log}
+              </div>
+            ))
+          )}
         </div>
       )}
 
       {/* Contract Support */}
-      <div style={{ background: "white", padding: "0.3rem", borderRadius: "0.3rem", fontSize: "0.5rem" }}>
-        <div style={{ fontWeight: "bold", marginBottom: "0.2rem" }}>📋 Support</div>
-        <div style={{ color: "#28a745" }}>✅ CALL/PUT, DIGITS, HIGHER/LOWER, TOUCH/NOTOUCH</div>
-        <div style={{ color: "#dc3545" }}>❌ Multipliers, Accumulators, Vanilla Options</div>
+      <div style={{ fontSize: "8px", color: "#666", lineHeight: "1.1" }}>
+        <div style={{ color: "#28a745" }}>✅ CALL/PUT, DIGITS, HIGHER/LOWER</div>
+        <div style={{ color: "#dc3545" }}>❌ Multipliers, Accumulators</div>
       </div>
     </div>
   )
