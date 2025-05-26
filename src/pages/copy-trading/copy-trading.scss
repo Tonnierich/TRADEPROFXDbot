@@ -1,0 +1,261 @@
+.copy-trading {
+  padding: 2.4rem;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-white);
+
+  &__header {
+    margin-bottom: 2.4rem;
+  }
+
+  &__title {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+
+  &__alert {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1.2rem;
+    border-radius: 0.4rem;
+    margin-bottom: 1.6rem;
+
+    &--error {
+      background: var(--color-red-1);
+      border: 1px solid var(--color-red-3);
+    }
+
+    &--success {
+      background: var(--color-green-1);
+      border: 1px solid var(--color-green-3);
+    }
+  }
+
+  &__section {
+    background: var(--color-white);
+    border: 1px solid var(--color-grey-5);
+    border-radius: 0.8rem;
+    padding: 1.6rem;
+    margin-bottom: 1.6rem;
+  }
+
+  &__section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+
+  &__input-group {
+    display: flex;
+    gap: 0.8rem;
+    align-items: end;
+    margin: 1.2rem 0;
+
+    .dc-input {
+      flex: 1;
+    }
+  }
+
+  &__tabs {
+    margin-top: 2.4rem;
+  }
+
+  &__tab-buttons {
+    display: flex;
+    gap: 0.8rem;
+    margin-bottom: 1.6rem;
+  }
+
+  &__tab-button {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+
+    &.active {
+      background: var(--color-blue) !important;
+      color: var(--color-white) !important;
+    }
+  }
+
+  &__tab-content {
+    min-height: 40rem;
+  }
+
+  &__stats-card {
+    background: var(--color-grey-1);
+    border-radius: 0.8rem;
+    padding: 1.6rem;
+    margin: 1.2rem 0;
+  }
+
+  &__stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.6rem;
+    margin-top: 1.2rem;
+  }
+
+  &__stat {
+    text-align: center;
+  }
+
+  &__stat-card {
+    background: var(--color-grey-1);
+    border-radius: 0.8rem;
+    padding: 1.6rem;
+    text-align: center;
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem;
+    text-align: center;
+  }
+
+  &__sessions {
+    margin-top: 1.2rem;
+  }
+
+  &__session-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--color-grey-1);
+    border-radius: 0.8rem;
+    padding: 1.6rem;
+    margin-bottom: 1.2rem;
+  }
+
+  &__session-info {
+    flex: 1;
+  }
+
+  &__session-stats {
+    display: flex;
+    gap: 1.2rem;
+    margin-top: 0.4rem;
+  }
+
+  &__session-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  &__status {
+    padding: 0.4rem 0.8rem;
+    border-radius: 1.2rem;
+    font-size: 1rem;
+    font-weight: 500;
+
+    &--active {
+      background: var(--color-green-1);
+      color: var(--color-green-6);
+    }
+
+    &--stopped {
+      background: var(--color-grey-2);
+      color: var(--color-grey-6);
+    }
+  }
+
+  &__toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 1.2rem 0;
+  }
+
+  &__checkbox {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  &__token-share {
+    display: flex;
+    gap: 0.8rem;
+    align-items: end;
+    margin: 1.2rem 0;
+
+    .dc-input {
+      flex: 1;
+    }
+  }
+
+  &__warning {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    background: var(--color-blue-1);
+    border: 1px solid var(--color-blue-3);
+    border-radius: 0.4rem;
+    padding: 1.2rem;
+    margin-top: 1.2rem;
+  }
+
+  &__info {
+    background: var(--color-blue-1);
+    border: 1px solid var(--color-blue-3);
+    border-radius: 0.8rem;
+    padding: 1.6rem;
+    margin-top: 2.4rem;
+  }
+
+  &__info-header {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+  }
+
+  &__info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      margin-bottom: 0.8rem;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .copy-trading {
+    padding: 1.6rem;
+
+    &__input-group {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    &__stats-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    &__session-card {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1.2rem;
+    }
+
+    &__session-actions {
+      justify-content: space-between;
+    }
+
+    &__token-share {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
+}
