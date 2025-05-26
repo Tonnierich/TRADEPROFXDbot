@@ -4,21 +4,17 @@ import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { observer } from "mobx-react-lite"
 
-interface MasterBuyRequest {
-  buy: number
-  parameters: {
-    amount: number
-    basis: string
-    contract_type: string
-    currency: string
-    duration: number
-    duration_unit: string
-    symbol: string
-    barrier?: string
-    barrier2?: string
-    prediction?: number
-  }
-  req_id: number
+interface TradeData {
+  contract_type: string
+  symbol: string
+  amount: number
+  duration: number
+  duration_unit: string
+  basis: string
+  currency: string
+  barrier?: string
+  barrier2?: string
+  prediction?: number
 }
 
 interface ClientConnection {
@@ -28,12 +24,10 @@ interface ClientConnection {
   status: "connecting" | "connected" | "disconnected" | "error"
   loginid: string
   balance: number
-  currency: string
-  last_trade_id: string | null
   total_copied: number
 }
 
-const BulletproofCopyTrading: React.FC = observer(() => {
+const WorkingCopyTrading: React.FC = observer(() => {
   const [masterToken, setMasterToken] = useState("")
   const [clients, setClients] = useState<ClientConnection[]>([])
   const [newClientToken, setNewClientToken] = useState("")
@@ -50,17 +44,17 @@ const BulletproofCopyTrading: React.FC = observer(() => {
   const isActiveRef = useRef(false)
   const processedTradesRef = useRef<Set<string>>(new Set())
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const lastMasterBuyRef = useRef<MasterBuyRequest | null>(null)
+  const portfolioIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const log = (message: string, type: "info" | "success" | "error" | "warning" = "info") => {
     const timestamp = new Date().toLocaleTimeString()
     const emoji = type === "success" ? "✅" : type === "error" ? "❌" : type === "warning" ? "⚠️" : "ℹ️"
     const logEntry = `${timestamp} ${emoji} ${message}`
     setLogs((prev) => [logEntry, ...prev.slice(0, 19)])
-    console.log(`[BulletproofCopy] ${logEntry}`)
+    console.log(`[WorkingCopy] ${logEntry}`)
   }
 
-  // 🎯 STEP 1: CONNECT MASTER WITH KEEPALIVE
+  // 🎯 STEP 1: CONNECT MASTER WITH PROPER MONITORING
   const connectMaster = async () => {
     if (!masterToken.trim()) {
       log("Master token required", "error")
@@ -79,7 +73,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ ping: 1 }))
           }
-        }, 30000) // Ping every 30 seconds
+        }, 30000)
 
         // Authorize master
         ws.send(
@@ -92,7 +86,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
-        handleMasterMessage(data, ws)
+        handleMasterMessage(data)
       }
 
       ws.onerror = (error) => {
@@ -101,18 +95,16 @@ const BulletproofCopyTrading: React.FC = observer(() => {
       }
 
       ws.onclose = (event) => {
-        log(`Master WebSocket disconnected (${event.code}: ${event.reason})`, "warning")
+        log(`Master disconnected (${event.code})`, "warning")
         setMasterWs(null)
         masterWsRef.current = null
         setMasterAccount("")
 
-        // Clear ping interval
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current)
-          pingIntervalRef.current = null
-        }
+        // Clear intervals
+        if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
+        if (portfolioIntervalRef.current) clearInterval(portfolioIntervalRef.current)
 
-        // Auto-reconnect after 3 seconds if was active
+        // Auto-reconnect if was active
         if (isActiveRef.current) {
           setTimeout(() => {
             log("Auto-reconnecting master...", "info")
@@ -128,42 +120,8 @@ const BulletproofCopyTrading: React.FC = observer(() => {
     }
   }
 
-  // 🎯 STEP 2: INTERCEPT OUTGOING BUY REQUESTS FROM MASTER
-  const interceptMasterBuyRequest = (ws: WebSocket) => {
-    // Store original send method
-    const originalSend = ws.send.bind(ws)
-
-    // Override send method to intercept buy requests
-    ws.send = (data: string | ArrayBufferLike | Blob | ArrayBufferView) => {
-      try {
-        if (typeof data === "string") {
-          const parsed = JSON.parse(data)
-
-          // 🔥 CAPTURE BUY REQUESTS BEFORE THEY'RE SENT!
-          if (parsed.buy === 1 && parsed.parameters && isActiveRef.current) {
-            log(`🚨 INTERCEPTED: ${parsed.parameters.contract_type} $${parsed.parameters.amount}`, "success")
-
-            // Store the exact buy request
-            lastMasterBuyRef.current = parsed as MasterBuyRequest
-
-            // Immediately replicate to clients
-            replicateExactBuyRequest(parsed.parameters)
-
-            // Update stats
-            setStats((prev) => ({ ...prev, detected: prev.detected + 1 }))
-          }
-        }
-      } catch (error) {
-        // If parsing fails, just continue with original send
-      }
-
-      // Always call original send
-      return originalSend(data)
-    }
-  }
-
-  // 🎯 STEP 3: HANDLE MASTER MESSAGES
-  const handleMasterMessage = (data: any, ws: WebSocket) => {
+  // 🎯 STEP 2: HANDLE MASTER MESSAGES WITH MULTIPLE DETECTION METHODS
+  const handleMasterMessage = (data: any) => {
     if (data.error) {
       log(`Master error: ${data.error.message}`, "error")
       return
@@ -174,34 +132,65 @@ const BulletproofCopyTrading: React.FC = observer(() => {
         setMasterAccount(data.authorize.loginid)
         log(`Master authorized: ${data.authorize.loginid}`, "success")
 
-        // 🔥 INTERCEPT OUTGOING MESSAGES FROM MASTER
-        interceptMasterBuyRequest(ws)
+        // Start multiple monitoring streams
+        if (masterWsRef.current) {
+          // 1. Portfolio monitoring (most reliable)
+          masterWsRef.current.send(
+            JSON.stringify({
+              portfolio: 1,
+              req_id: 2,
+            }),
+          )
 
-        // Subscribe to necessary streams for backup detection
-        ws.send(
-          JSON.stringify({
-            transaction: 1,
-            subscribe: 1,
-            req_id: 3,
-          }),
-        )
+          // 2. Transaction stream
+          masterWsRef.current.send(
+            JSON.stringify({
+              transaction: 1,
+              subscribe: 1,
+              req_id: 3,
+            }),
+          )
+
+          // 3. Balance monitoring
+          masterWsRef.current.send(
+            JSON.stringify({
+              balance: 1,
+              subscribe: 1,
+              req_id: 4,
+            }),
+          )
+
+          // 4. Start portfolio polling every 2 seconds
+          startPortfolioPolling()
+        }
         break
 
-      case "buy":
-        // Backup confirmation that trade went through
-        if (data.buy?.contract_id && isActiveRef.current) {
-          log(`✅ Master trade confirmed: ${data.buy.shortcode}`, "success")
+      case "portfolio":
+        // 🔥 MAIN DETECTION METHOD - Portfolio analysis
+        if (data.portfolio?.contracts && isActiveRef.current) {
+          analyzePortfolioForNewTrades(data.portfolio.contracts)
         }
         break
 
       case "transaction":
-        // Additional backup detection
+        // Backup detection method
         if (data.transaction?.action === "buy" && isActiveRef.current) {
-          const tradeId = data.transaction.transaction_id?.toString()
-          if (tradeId && !processedTradesRef.current.has(tradeId)) {
-            processedTradesRef.current.add(tradeId)
-            log(`📋 Transaction logged: ${data.transaction.contract_type}`, "info")
-          }
+          const contractType = data.transaction.contract_type || "UNKNOWN"
+          log(`📋 Transaction: ${contractType}`, "info")
+        }
+        break
+
+      case "balance":
+        // Balance change detection (backup)
+        if (data.balance && isActiveRef.current) {
+          log(`💰 Balance: $${data.balance.balance}`, "info")
+        }
+        break
+
+      case "buy":
+        // Direct buy confirmation
+        if (data.buy?.contract_id && isActiveRef.current) {
+          log(`✅ Buy confirmed: ${data.buy.shortcode}`, "success")
         }
         break
 
@@ -211,62 +200,108 @@ const BulletproofCopyTrading: React.FC = observer(() => {
     }
   }
 
-  // 🎯 STEP 4: REPLICATE EXACT BUY REQUEST
-  const replicateExactBuyRequest = (masterParameters: any) => {
-    // Validate parameters first
-    if (
-      !masterParameters ||
-      !masterParameters.contract_type ||
-      !masterParameters.symbol ||
-      !masterParameters.amount ||
-      masterParameters.amount <= 0
-    ) {
-      log("❌ Invalid master parameters - skipping replication", "error")
-      return
-    }
+  // 🎯 STEP 3: ANALYZE PORTFOLIO FOR NEW TRADES
+  const analyzePortfolioForNewTrades = (contracts: any[]) => {
+    if (!contracts || contracts.length === 0) return
 
+    // Look for very recent contracts (last 10 seconds)
+    const now = Date.now() / 1000
+    const recentContracts = contracts.filter((contract) => {
+      const contractTime = contract.date_start || contract.purchase_time || 0
+      const timeDiff = now - contractTime
+      return timeDiff >= 0 && timeDiff <= 10 && contract.buy_price > 0
+    })
+
+    recentContracts.forEach((contract) => {
+      const contractId = contract.contract_id?.toString()
+      if (contractId && !processedTradesRef.current.has(contractId)) {
+        processedTradesRef.current.add(contractId)
+
+        // Extract trade data from contract
+        const tradeData = extractTradeDataFromContract(contract)
+        if (tradeData) {
+          log(`🚨 NEW TRADE: ${tradeData.contract_type} $${tradeData.amount}`, "success")
+          setStats((prev) => ({ ...prev, detected: prev.detected + 1 }))
+
+          // Replicate immediately
+          replicateTradeToClients(tradeData)
+        } else {
+          log(`⚠️ Could not extract trade data from contract`, "warning")
+        }
+      }
+    })
+  }
+
+  // 🎯 STEP 4: EXTRACT TRADE DATA FROM CONTRACT
+  const extractTradeDataFromContract = (contract: any): TradeData | null => {
+    try {
+      // Validate required fields
+      if (!contract.contract_type || !contract.underlying || !contract.buy_price) {
+        log(`❌ Missing required fields in contract`, "error")
+        return null
+      }
+
+      const tradeData: TradeData = {
+        contract_type: contract.contract_type,
+        symbol: contract.underlying,
+        amount: Math.abs(contract.buy_price),
+        duration: contract.duration || 5,
+        duration_unit: contract.duration_unit || "t",
+        basis: "stake",
+        currency: contract.currency || "USD",
+      }
+
+      // Add optional fields
+      if (contract.barrier) tradeData.barrier = contract.barrier.toString()
+      if (contract.barrier2) tradeData.barrier2 = contract.barrier2.toString()
+      if (contract.prediction !== undefined) tradeData.prediction = contract.prediction
+
+      log(`✅ Extracted: ${tradeData.contract_type} on ${tradeData.symbol}`, "success")
+      return tradeData
+    } catch (error) {
+      log(`❌ Failed to extract trade data: ${error}`, "error")
+      return null
+    }
+  }
+
+  // 🎯 STEP 5: REPLICATE TRADE TO ALL CLIENTS
+  const replicateTradeToClients = (tradeData: TradeData) => {
     const readyClients = clientsRef.current.filter(
-      (client) => client.status === "connected" && client.ws && client.balance >= masterParameters.amount,
+      (client) => client.status === "connected" && client.ws && client.balance >= tradeData.amount,
     )
 
     if (readyClients.length === 0) {
       log("⚠️ No ready clients for replication", "warning")
+      setStats((prev) => ({ ...prev, failed: prev.failed + 1 }))
       return
     }
 
     log(`🚀 Replicating to ${readyClients.length} clients`, "success")
 
-    // 🔥 SEND IDENTICAL BUY REQUESTS TO ALL CLIENTS
     readyClients.forEach((client, index) => {
-      const exactBuyRequest = {
-        buy: 1,
-        parameters: {
-          // 🎯 EXACT SAME PARAMETERS - NO MODIFICATIONS!
-          amount: masterParameters.amount,
-          basis: masterParameters.basis,
-          contract_type: masterParameters.contract_type,
-          currency: masterParameters.currency,
-          duration: masterParameters.duration,
-          duration_unit: masterParameters.duration_unit,
-          symbol: masterParameters.symbol,
-          // Include all optional parameters exactly as master sent them
-          ...(masterParameters.barrier && { barrier: masterParameters.barrier }),
-          ...(masterParameters.barrier2 && { barrier2: masterParameters.barrier2 }),
-          ...(masterParameters.prediction !== undefined && { prediction: masterParameters.prediction }),
-        },
-        req_id: Date.now() + index, // Unique request ID per client
+      // Create proposal first, then buy
+      const proposalRequest = {
+        proposal: 1,
+        amount: tradeData.amount,
+        basis: tradeData.basis,
+        contract_type: tradeData.contract_type,
+        currency: tradeData.currency,
+        duration: tradeData.duration,
+        duration_unit: tradeData.duration_unit,
+        symbol: tradeData.symbol,
+        req_id: Date.now() + index,
+        ...(tradeData.barrier && { barrier: tradeData.barrier }),
+        ...(tradeData.barrier2 && { barrier2: tradeData.barrier2 }),
+        ...(tradeData.prediction !== undefined && { prediction: tradeData.prediction }),
       }
 
       try {
-        // 🎯 SEND IMMEDIATELY - NO DELAYS!
-        client.ws!.send(JSON.stringify(exactBuyRequest))
-
-        log(`📤 Sent to ${client.loginid}: ${masterParameters.contract_type} $${masterParameters.amount}`, "info")
+        client.ws!.send(JSON.stringify(proposalRequest))
+        log(`📤 Proposal sent to ${client.loginid}`, "info")
 
         // Update client stats
         updateClient(client.id, {
           total_copied: client.total_copied + 1,
-          last_trade_id: `${Date.now()}_${index}`,
         })
       } catch (error) {
         log(`❌ Failed to send to ${client.loginid}: ${error}`, "error")
@@ -275,7 +310,23 @@ const BulletproofCopyTrading: React.FC = observer(() => {
     })
   }
 
-  // 🎯 STEP 5: CONNECT CLIENTS
+  // 🎯 STEP 6: START PORTFOLIO POLLING
+  const startPortfolioPolling = () => {
+    if (portfolioIntervalRef.current) clearInterval(portfolioIntervalRef.current)
+
+    portfolioIntervalRef.current = setInterval(() => {
+      if (masterWsRef.current && isActiveRef.current) {
+        masterWsRef.current.send(
+          JSON.stringify({
+            portfolio: 1,
+            req_id: Date.now(),
+          }),
+        )
+      }
+    }, 2000) // Poll every 2 seconds
+  }
+
+  // 🎯 STEP 7: CONNECT CLIENTS
   const connectClient = (token: string) => {
     const clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
@@ -286,8 +337,6 @@ const BulletproofCopyTrading: React.FC = observer(() => {
       status: "connecting",
       loginid: "",
       balance: 0,
-      currency: "USD",
-      last_trade_id: null,
       total_copied: 0,
     }
 
@@ -311,13 +360,11 @@ const BulletproofCopyTrading: React.FC = observer(() => {
         handleClientMessage(clientId, data)
       }
 
-      ws.onerror = (error) => {
-        log(`Client ${clientId} error`, "error")
+      ws.onerror = () => {
         updateClient(clientId, { status: "error" })
       }
 
       ws.onclose = () => {
-        log(`Client ${clientId} disconnected`, "warning")
         updateClient(clientId, { status: "disconnected", ws: null })
       }
 
@@ -328,11 +375,10 @@ const BulletproofCopyTrading: React.FC = observer(() => {
     }
   }
 
-  // 🎯 STEP 6: HANDLE CLIENT MESSAGES
+  // 🎯 STEP 8: HANDLE CLIENT MESSAGES
   const handleClientMessage = (clientId: string, data: any) => {
     if (data.error) {
       log(`Client error: ${data.error.message}`, "error")
-      setStats((prev) => ({ ...prev, failed: prev.failed + 1 }))
       return
     }
 
@@ -342,18 +388,30 @@ const BulletproofCopyTrading: React.FC = observer(() => {
           status: "connected",
           loginid: data.authorize.loginid,
           balance: data.authorize.balance,
-          currency: data.authorize.currency,
         })
         log(`✅ Client connected: ${data.authorize.loginid}`, "success")
         break
 
+      case "proposal":
+        // Auto-buy the proposal
+        if (data.proposal?.id && isActiveRef.current) {
+          const client = clientsRef.current.find((c) => c.id === clientId)
+          if (client?.ws) {
+            const buyRequest = {
+              buy: data.proposal.id,
+              price: data.proposal.ask_price,
+              req_id: Date.now(),
+            }
+            client.ws.send(JSON.stringify(buyRequest))
+            log(`💰 Auto-buying for ${client.loginid}`, "info")
+          }
+        }
+        break
+
       case "buy":
         if (data.buy?.contract_id) {
-          updateClient(clientId, {
-            last_trade_id: data.buy.contract_id.toString(),
-          })
           setStats((prev) => ({ ...prev, replicated: prev.replicated + 1 }))
-          log(`✅ Client trade success: ${data.buy.shortcode}`, "success")
+          log(`✅ Client trade SUCCESS: ${data.buy.shortcode}`, "success")
         }
         break
     }
@@ -380,9 +438,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
 
   const removeClient = (clientId: string) => {
     const client = clients.find((c) => c.id === clientId)
-    if (client?.ws) {
-      client.ws.close()
-    }
+    if (client?.ws) client.ws.close()
 
     setClients((prev) => prev.filter((c) => c.id !== clientId))
     clientsRef.current = clientsRef.current.filter((c) => c.id !== clientId)
@@ -406,8 +462,10 @@ const BulletproofCopyTrading: React.FC = observer(() => {
     if (!isActive) {
       processedTradesRef.current.clear()
       setStats({ detected: 0, replicated: 0, failed: 0 })
+      startPortfolioPolling()
       log(`🎯 Copy trading STARTED with ${readyClients.length} clients`, "success")
     } else {
+      if (portfolioIntervalRef.current) clearInterval(portfolioIntervalRef.current)
       log("🛑 Copy trading STOPPED", "warning")
     }
   }
@@ -416,6 +474,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
   useEffect(() => {
     return () => {
       if (pingIntervalRef.current) clearInterval(pingIntervalRef.current)
+      if (portfolioIntervalRef.current) clearInterval(portfolioIntervalRef.current)
       if (masterWs) masterWs.close()
       clients.forEach((client) => {
         if (client.ws) client.ws.close()
@@ -450,7 +509,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
           border: "1px solid #ddd",
         }}
       >
-        <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "bold" }}>🎯 Bulletproof Copy Trading</h3>
+        <h3 style={{ margin: 0, fontSize: "14px", fontWeight: "bold" }}>🎯 Working Copy Trading</h3>
         <div
           style={{
             padding: "4px 8px",
@@ -461,7 +520,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
             color: isActive ? "#155724" : "#721c24",
           }}
         >
-          {isActive ? "🟢 INTERCEPTING" : "🔴 INACTIVE"}
+          {isActive ? "🟢 MONITORING" : "🔴 INACTIVE"}
         </div>
       </div>
 
@@ -646,7 +705,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
             opacity: !masterWs || connectedClients.length === 0 ? 0.5 : 1,
           }}
         >
-          {isActive ? "🛑 STOP INTERCEPTING" : "🎯 START INTERCEPTING"}
+          {isActive ? "🛑 STOP MONITORING" : "🎯 START MONITORING"}
         </button>
       </div>
 
@@ -663,7 +722,7 @@ const BulletproofCopyTrading: React.FC = observer(() => {
         <div style={{ fontSize: "10px", fontWeight: "bold", marginBottom: "4px" }}>📋 Activity Log</div>
         {logs.length === 0 ? (
           <div style={{ fontSize: "9px", color: "#666", textAlign: "center", padding: "8px" }}>
-            Waiting for master trades...
+            Monitoring portfolio for trades...
           </div>
         ) : (
           logs.slice(0, 10).map((log, index) => (
@@ -690,23 +749,22 @@ const BulletproofCopyTrading: React.FC = observer(() => {
           color: "#666",
           marginTop: "6px",
           padding: "4px",
-          background: "#d1ecf1",
+          background: "#d4edda",
           borderRadius: "2px",
-          border: "1px solid #bee5eb",
+          border: "1px solid #c3e6cb",
         }}
       >
         <div>
-          🔥 <strong>BULLETPROOF FEATURES:</strong>
+          🔥 <strong>WORKING FEATURES:</strong>
         </div>
-        <div>• Intercepts master's exact buy requests</div>
-        <div>• Forwards identical parameters to clients</div>
-        <div>• Auto-reconnect with 30s keepalive</div>
-        <div>• Zero delays, zero modifications</div>
-        <div>• Same stake, same entry, same exit ✅</div>
+        <div>• Portfolio monitoring every 2 seconds</div>
+        <div>• Multiple detection streams (portfolio + transaction)</div>
+        <div>• Auto-proposal and auto-buy system</div>
+        <div>• Proper trade data extraction</div>
+        <div>• Real-time replication ✅</div>
       </div>
     </div>
   )
 })
 
-export default BulletproofCopyTrading
-
+export default WorkingCopyTrading
