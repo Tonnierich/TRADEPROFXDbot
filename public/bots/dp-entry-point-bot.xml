@@ -1,0 +1,30 @@
+<xml xmlns="http://www.w3.org/1999/xhtml">
+    <block type="trade_definition" id="trade_definition">
+      <statement name="TRADE_OPTIONS">
+        <block type="market_selection">
+          <field name="MARKET">synthetic_index</field>
+          <field name="SYMBOL">R_100</field>
+          <next>
+            <block type="trade_parameters">
+              <field name="TRADE_TYPE">callput</field>
+              <value name="STAKE">
+                <block type="math_number">
+                  <field name="NUM">10</field>
+                </block>
+              </value>
+              <value name="DURATION">
+                <block type="math_number">
+                  <field name="NUM">5</field>
+                </block>
+              </value>
+            </block>
+          </next>
+        </block>
+      </statement>
+      <statement name="TRADE_EXECUTION">
+        <block type="purchase">
+          <field name="CONTRACT_TYPE">CALL</field>
+        </block>
+      </statement>
+    </block>
+  </xml>
