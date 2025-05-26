@@ -10,7 +10,8 @@ export const tabs_title: TTabsTitle = Object.freeze({
     WORKSPACE: 'Workspace',
     CHART: 'Chart',
     ANALYSIS: 'Analysis',
-    STRATEGIES: 'Strategies', // Added Strategies tab
+    STRATEGIES: 'Strategies',
+    FREE_BOTS: 'Free Bots', // Added Free Bots tab
 });
 
 export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
@@ -19,7 +20,8 @@ export const DBOT_TABS: TDashboardTabIndex = Object.freeze({
     CHART: 2,
     TUTORIAL: 3,
     ANALYSIS: 4,
-    STRATEGIES: 5, // Added Strategies tab with index 5
+    STRATEGIES: 5,
+    FREE_BOTS: 6, // Added Free Bots tab with index 6
 });
 
 export const MAX_STRATEGIES = 10;
@@ -30,7 +32,8 @@ export const TAB_IDS = [
     'id-charts', 
     'id-tutorials',
     'id-analysis',
-    'id-strategies', // Added Strategies tab ID
+    'id-strategies',
+    'id-free-bots', // Added Free Bots tab ID
 ];
 
 export const DEBOUNCE_INTERVAL_TIME = 500;
