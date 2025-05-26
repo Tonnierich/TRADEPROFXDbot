@@ -4,15 +4,9 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { observer } from "mobx-react-lite"
 import { useStore } from "@/hooks/useStore"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Copy, Users, TrendingUp, Eye, Play, Square, Settings, AlertCircle, CheckCircle, Info } from "lucide-react"
+import { Button, Icon, Text, Input, Loading } from "@deriv/components"
+import { localize } from "@deriv/translations"
+import "./copy-trading.scss"
 
 interface TraderStats {
   trader_id: string
@@ -103,7 +97,11 @@ const CopyTrading: React.FC = observer(() => {
         break
 
       case "copytrading_statistics":
-        setTraderStats(data.copytrading_statistics)
+        if (data.echo_req.trader_id) {
+          setTraderStats(data.copytrading_statistics)
+        } else {
+          setMyStats(data.copytrading_statistics)
+        }
         break
 
       case "copy_start":
@@ -149,7 +147,6 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   const generateApiToken = () => {
-    // This would typically redirect to Deriv's OAuth flow
     window.open("https://app.deriv.com/account/api-token", "_blank")
     setSuccess("Please create a read-only API token and paste it above")
   }
@@ -216,310 +213,385 @@ const CopyTrading: React.FC = observer(() => {
   }, [apiToken, activeTab])
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="copy-trading">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold flex items-center justify-center gap-2">
-          <Copy className="h-8 w-8 text-primary" />
-          Copy Trading
-        </h1>
-        <p className="text-muted-foreground max-w-2xl mx-auto">
-          Copy trades from experienced traders or allow others to copy your trades. Available for Options trading only.
-        </p>
+      <div className="copy-trading__header">
+        <div className="copy-trading__title">
+          <Icon icon="IcCopy" size={32} />
+          <Text size="xl" weight="bold">
+            {localize("Copy Trading")}
+          </Text>
+        </div>
+        <Text size="sm" color="less-prominent">
+          {localize(
+            "Copy trades from experienced traders or allow others to copy your trades. Available for Options trading only.",
+          )}
+        </Text>
       </div>
 
       {/* Alerts */}
       {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div className="copy-trading__alert copy-trading__alert--error">
+          <Icon icon="IcAlertDanger" size={16} />
+          <Text size="xs" color="loss-danger">
+            {error}
+          </Text>
+        </div>
       )}
 
       {success && (
-        <Alert>
-          <CheckCircle className="h-4 w-4" />
-          <AlertDescription>{success}</AlertDescription>
-        </Alert>
+        <div className="copy-trading__alert copy-trading__alert--success">
+          <Icon icon="IcCheckmarkCircle" size={16} />
+          <Text size="xs" color="profit-success">
+            {success}
+          </Text>
+        </div>
       )}
 
-      {/* API Token Input */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            API Configuration
-          </CardTitle>
-          <CardDescription>Enter your Deriv API token to enable copy trading features</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="api-token">Your API Token</Label>
-            <div className="flex gap-2">
-              <Input
-                id="api-token"
-                type="password"
-                placeholder="Enter your read-only API token"
-                value={apiToken}
-                onChange={(e) => setApiToken(e.target.value)}
-              />
-              <Button onClick={generateApiToken} variant="outline">
-                Generate Token
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Create a read-only API token from your Deriv account settings
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* API Token Section */}
+      <div className="copy-trading__section">
+        <div className="copy-trading__section-header">
+          <Icon icon="IcSettings" size={20} />
+          <Text size="sm" weight="bold">
+            {localize("API Configuration")}
+          </Text>
+        </div>
+        <Text size="xs" color="less-prominent">
+          {localize("Enter your Deriv API token to enable copy trading features")}
+        </Text>
+
+        <div className="copy-trading__input-group">
+          <Input
+            type="password"
+            label={localize("Your API Token")}
+            placeholder={localize("Enter your read-only API token")}
+            value={apiToken}
+            onChange={(e) => setApiToken(e.target.value)}
+          />
+          <Button onClick={generateApiToken} secondary small>
+            {localize("Generate Token")}
+          </Button>
+        </div>
+        <Text size="xxs" color="less-prominent">
+          {localize("Create a read-only API token from your Deriv account settings")}
+        </Text>
+      </div>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "copier" | "trader")}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="copier" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            Be a Copier
-          </TabsTrigger>
-          <TabsTrigger value="trader" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Be a Trader
-          </TabsTrigger>
-        </TabsList>
+      <div className="copy-trading__tabs">
+        <div className="copy-trading__tab-buttons">
+          <Button
+            className={`copy-trading__tab-button ${activeTab === "copier" ? "active" : ""}`}
+            onClick={() => setActiveTab("copier")}
+            secondary={activeTab !== "copier"}
+            small
+          >
+            <Icon icon="IcEye" size={16} />
+            {localize("Be a Copier")}
+          </Button>
+          <Button
+            className={`copy-trading__tab-button ${activeTab === "trader" ? "active" : ""}`}
+            onClick={() => setActiveTab("trader")}
+            secondary={activeTab !== "trader"}
+            small
+          >
+            <Icon icon="IcUser" size={16} />
+            {localize("Be a Trader")}
+          </Button>
+        </div>
 
-        {/* Copier Tab */}
-        <TabsContent value="copier" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Copy a Trader</CardTitle>
-              <CardDescription>Enter a trader's token to start copying their trades</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="trader-token">Trader's Token</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="trader-token"
-                    placeholder="Enter trader's read-only token"
-                    value={traderToken}
-                    onChange={(e) => setTraderToken(e.target.value)}
-                  />
-                  <Button onClick={loadTraderStats} variant="outline" disabled={isLoading}>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Preview
-                  </Button>
-                </div>
+        {/* Copier Tab Content */}
+        {activeTab === "copier" && (
+          <div className="copy-trading__tab-content">
+            <div className="copy-trading__section">
+              <div className="copy-trading__section-header">
+                <Text size="sm" weight="bold">
+                  {localize("Copy a Trader")}
+                </Text>
+              </div>
+              <Text size="xs" color="less-prominent">
+                {localize("Enter a trader's token to start copying their trades")}
+              </Text>
+
+              <div className="copy-trading__input-group">
+                <Input
+                  label={localize("Trader's Token")}
+                  placeholder={localize("Enter trader's read-only token")}
+                  value={traderToken}
+                  onChange={(e) => setTraderToken(e.target.value)}
+                />
+                <Button onClick={loadTraderStats} secondary small disabled={isLoading}>
+                  <Icon icon="IcEye" size={16} />
+                  {localize("Preview")}
+                </Button>
               </div>
 
               {traderStats && (
-                <Card className="bg-muted/50">
-                  <CardHeader>
-                    <CardTitle className="text-lg">Trader Statistics</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">{traderStats.win_rate.toFixed(1)}%</div>
-                        <div className="text-sm text-muted-foreground">Win Rate</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold">{traderStats.total_trades}</div>
-                        <div className="text-sm text-muted-foreground">Total Trades</div>
-                      </div>
-                      <div className="text-center">
-                        <div
-                          className={`text-2xl font-bold ${traderStats.total_profit_loss >= 0 ? "text-green-600" : "text-red-600"}`}
-                        >
-                          ${traderStats.total_profit_loss.toFixed(2)}
-                        </div>
-                        <div className="text-sm text-muted-foreground">Total P&L</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">{traderStats.copiers_count}</div>
-                        <div className="text-sm text-muted-foreground">Copiers</div>
-                      </div>
+                <div className="copy-trading__stats-card">
+                  <Text size="sm" weight="bold">
+                    {localize("Trader Statistics")}
+                  </Text>
+                  <div className="copy-trading__stats-grid">
+                    <div className="copy-trading__stat">
+                      <Text size="lg" weight="bold" color="profit-success">
+                        {traderStats.win_rate.toFixed(1)}%
+                      </Text>
+                      <Text size="xs" color="less-prominent">
+                        {localize("Win Rate")}
+                      </Text>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div className="copy-trading__stat">
+                      <Text size="lg" weight="bold">
+                        {traderStats.total_trades}
+                      </Text>
+                      <Text size="xs" color="less-prominent">
+                        {localize("Total Trades")}
+                      </Text>
+                    </div>
+                    <div className="copy-trading__stat">
+                      <Text
+                        size="lg"
+                        weight="bold"
+                        color={traderStats.total_profit_loss >= 0 ? "profit-success" : "loss-danger"}
+                      >
+                        ${traderStats.total_profit_loss.toFixed(2)}
+                      </Text>
+                      <Text size="xs" color="less-prominent">
+                        {localize("Total P&L")}
+                      </Text>
+                    </div>
+                    <div className="copy-trading__stat">
+                      <Text size="lg" weight="bold" color="blue">
+                        {traderStats.copiers_count}
+                      </Text>
+                      <Text size="xs" color="less-prominent">
+                        {localize("Copiers")}
+                      </Text>
+                    </div>
+                  </div>
+                </div>
               )}
-            </CardContent>
-            <CardFooter>
-              <Button onClick={startCopying} disabled={!traderToken || !apiToken || isLoading} className="w-full">
-                <Play className="h-4 w-4 mr-2" />
-                Start Copying
-              </Button>
-            </CardFooter>
-          </Card>
 
-          {/* Active Copy Sessions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Copy Sessions</CardTitle>
-              <CardDescription>Manage your active copy trading sessions</CardDescription>
-            </CardHeader>
-            <CardContent>
+              <Button onClick={startCopying} disabled={!traderToken || !apiToken || isLoading} primary large>
+                {isLoading ? <Loading /> : <Icon icon="IcPlay" size={16} />}
+                {localize("Start Copying")}
+              </Button>
+            </div>
+
+            {/* Active Copy Sessions */}
+            <div className="copy-trading__section">
+              <div className="copy-trading__section-header">
+                <Text size="sm" weight="bold">
+                  {localize("Your Copy Sessions")}
+                </Text>
+              </div>
+              <Text size="xs" color="less-prominent">
+                {localize("Manage your active copy trading sessions")}
+              </Text>
+
               {copyingSessions.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Copy className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No active copy sessions</p>
+                <div className="copy-trading__empty">
+                  <Icon icon="IcCopy" size={48} />
+                  <Text size="sm" color="less-prominent">
+                    {localize("No active copy sessions")}
+                  </Text>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="copy-trading__sessions">
                   {copyingSessions.map((session, index) => (
-                    <Card key={index} className="bg-muted/50">
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <div className="font-medium">Trader: {session.trader_id}</div>
-                            <div className="text-sm text-muted-foreground">
-                              Started: {new Date(session.start_time * 1000).toLocaleDateString()}
-                            </div>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span>Trades: {session.total_trades}</span>
-                              <span className={session.total_profit_loss >= 0 ? "text-green-600" : "text-red-600"}>
-                                P&L: ${session.total_profit_loss.toFixed(2)}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={session.status === "active" ? "default" : "secondary"}>
-                              {session.status}
-                            </Badge>
-                            {session.status === "active" && (
-                              <Button size="sm" variant="outline" onClick={() => stopCopying(session.trader_token)}>
-                                <Square className="h-4 w-4 mr-2" />
-                                Stop
-                              </Button>
-                            )}
-                          </div>
+                    <div key={index} className="copy-trading__session-card">
+                      <div className="copy-trading__session-info">
+                        <Text size="sm" weight="bold">
+                          {localize("Trader")}: {session.trader_id}
+                        </Text>
+                        <Text size="xs" color="less-prominent">
+                          {localize("Started")}: {new Date(session.start_time * 1000).toLocaleDateString()}
+                        </Text>
+                        <div className="copy-trading__session-stats">
+                          <Text size="xs">
+                            {localize("Trades")}: {session.total_trades}
+                          </Text>
+                          <Text size="xs" color={session.total_profit_loss >= 0 ? "profit-success" : "loss-danger"}>
+                            P&L: ${session.total_profit_loss.toFixed(2)}
+                          </Text>
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                      <div className="copy-trading__session-actions">
+                        <span className={`copy-trading__status copy-trading__status--${session.status}`}>
+                          {session.status}
+                        </span>
+                        {session.status === "active" && (
+                          <Button size="small" secondary onClick={() => stopCopying(session.trader_token)}>
+                            <Icon icon="IcStop" size={12} />
+                            {localize("Stop")}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </div>
+        )}
 
-        {/* Trader Tab */}
-        <TabsContent value="trader" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Allow Others to Copy You</CardTitle>
-              <CardDescription>Enable copy trading to let others copy your trades</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="allow-copiers">Allow Copiers</Label>
-                  <div className="text-sm text-muted-foreground">Let other users copy your trades</div>
-                </div>
-                <Switch id="allow-copiers" checked={allowCopiers} onCheckedChange={setAllowCopiers} />
+        {/* Trader Tab Content */}
+        {activeTab === "trader" && (
+          <div className="copy-trading__tab-content">
+            <div className="copy-trading__section">
+              <div className="copy-trading__section-header">
+                <Text size="sm" weight="bold">
+                  {localize("Allow Others to Copy You")}
+                </Text>
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={enableCopyTrading} disabled={!apiToken || isLoading} className="w-full">
-                <Settings className="h-4 w-4 mr-2" />
-                Update Settings
+              <Text size="xs" color="less-prominent">
+                {localize("Enable copy trading to let others copy your trades")}
+              </Text>
+
+              <div className="copy-trading__toggle">
+                <Text size="sm">{localize("Allow Copiers")}</Text>
+                <input
+                  type="checkbox"
+                  checked={allowCopiers}
+                  onChange={(e) => setAllowCopiers(e.target.checked)}
+                  className="copy-trading__checkbox"
+                />
+              </div>
+
+              <Button onClick={enableCopyTrading} disabled={!apiToken || isLoading} primary large>
+                {isLoading ? <Loading /> : <Icon icon="IcSettings" size={16} />}
+                {localize("Update Settings")}
               </Button>
-            </CardFooter>
-          </Card>
+            </div>
 
-          {/* Share Your Token */}
-          {allowCopiers && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Share Your Token</CardTitle>
-                <CardDescription>Share this read-only token with potential copiers</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label>Your Trader Token</Label>
-                  <div className="flex gap-2">
-                    <Input value={apiToken} readOnly className="font-mono" />
-                    <Button onClick={() => navigator.clipboard.writeText(apiToken)} variant="outline">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      Only share read-only tokens. Never share tokens with trading permissions.
-                    </AlertDescription>
-                  </Alert>
+            {/* Share Token */}
+            {allowCopiers && (
+              <div className="copy-trading__section">
+                <div className="copy-trading__section-header">
+                  <Text size="sm" weight="bold">
+                    {localize("Share Your Token")}
+                  </Text>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <Text size="xs" color="less-prominent">
+                  {localize("Share this read-only token with potential copiers")}
+                </Text>
 
-          {/* Your Trading Statistics */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Trading Statistics</CardTitle>
-              <CardDescription>View your performance stats that copiers can see</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button onClick={loadMyStats} disabled={!apiToken || isLoading} className="mb-4">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Load Statistics
+                <div className="copy-trading__token-share">
+                  <Input label={localize("Your Trader Token")} value={apiToken} readOnly />
+                  <Button onClick={() => navigator.clipboard.writeText(apiToken)} secondary small>
+                    <Icon icon="IcCopy" size={16} />
+                  </Button>
+                </div>
+
+                <div className="copy-trading__warning">
+                  <Icon icon="IcInfo" size={16} />
+                  <Text size="xs" color="less-prominent">
+                    {localize("Only share read-only tokens. Never share tokens with trading permissions.")}
+                  </Text>
+                </div>
+              </div>
+            )}
+
+            {/* Trading Statistics */}
+            <div className="copy-trading__section">
+              <div className="copy-trading__section-header">
+                <Text size="sm" weight="bold">
+                  {localize("Your Trading Statistics")}
+                </Text>
+              </div>
+              <Text size="xs" color="less-prominent">
+                {localize("View your performance stats that copiers can see")}
+              </Text>
+
+              <Button onClick={loadMyStats} disabled={!apiToken || isLoading} secondary>
+                {isLoading ? <Loading /> : <Icon icon="IcTrendUp" size={16} />}
+                {localize("Load Statistics")}
               </Button>
 
               {myStats && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-6 text-center">
-                      <div className="text-2xl font-bold text-green-600">{myStats.win_rate.toFixed(1)}%</div>
-                      <div className="text-sm text-muted-foreground">Win Rate</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-6 text-center">
-                      <div className="text-2xl font-bold">{myStats.total_trades}</div>
-                      <div className="text-sm text-muted-foreground">Total Trades</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-6 text-center">
-                      <div
-                        className={`text-2xl font-bold ${myStats.total_profit_loss >= 0 ? "text-green-600" : "text-red-600"}`}
-                      >
-                        ${myStats.total_profit_loss.toFixed(2)}
-                      </div>
-                      <div className="text-sm text-muted-foreground">Total P&L</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-6 text-center">
-                      <div className="text-2xl font-bold text-blue-600">{myStats.copiers_count}</div>
-                      <div className="text-sm text-muted-foreground">Copiers</div>
-                    </CardContent>
-                  </Card>
+                <div className="copy-trading__stats-grid">
+                  <div className="copy-trading__stat-card">
+                    <Text size="lg" weight="bold" color="profit-success">
+                      {myStats.win_rate.toFixed(1)}%
+                    </Text>
+                    <Text size="xs" color="less-prominent">
+                      {localize("Win Rate")}
+                    </Text>
+                  </div>
+                  <div className="copy-trading__stat-card">
+                    <Text size="lg" weight="bold">
+                      {myStats.total_trades}
+                    </Text>
+                    <Text size="xs" color="less-prominent">
+                      {localize("Total Trades")}
+                    </Text>
+                  </div>
+                  <div className="copy-trading__stat-card">
+                    <Text
+                      size="lg"
+                      weight="bold"
+                      color={myStats.total_profit_loss >= 0 ? "profit-success" : "loss-danger"}
+                    >
+                      ${myStats.total_profit_loss.toFixed(2)}
+                    </Text>
+                    <Text size="xs" color="less-prominent">
+                      {localize("Total P&L")}
+                    </Text>
+                  </div>
+                  <div className="copy-trading__stat-card">
+                    <Text size="lg" weight="bold" color="blue">
+                      {myStats.copiers_count}
+                    </Text>
+                    <Text size="xs" color="less-prominent">
+                      {localize("Copiers")}
+                    </Text>
+                  </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </div>
+        )}
+      </div>
 
-      {/* Info Card */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="text-blue-800 flex items-center gap-2">
-            <Info className="h-5 w-5" />
-            Important Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-blue-700 space-y-2">
-          <p>• Copy trading is available only for Options trading</p>
-          <p>• Always use read-only API tokens for security</p>
-          <p>• Past performance doesn't guarantee future results</p>
-          <p>• You can stop copying at any time</p>
-          <p>• For MT5 copy trading, use MetaQuotes Signals</p>
-        </CardContent>
-      </Card>
+      {/* Info Section */}
+      <div className="copy-trading__info">
+        <div className="copy-trading__info-header">
+          <Icon icon="IcInfo" size={20} />
+          <Text size="sm" weight="bold" color="blue">
+            {localize("Important Information")}
+          </Text>
+        </div>
+        <ul className="copy-trading__info-list">
+          <li>
+            <Text size="xs" color="blue">
+              • {localize("Copy trading is available only for Options trading")}
+            </Text>
+          </li>
+          <li>
+            <Text size="xs" color="blue">
+              • {localize("Always use read-only API tokens for security")}
+            </Text>
+          </li>
+          <li>
+            <Text size="xs" color="blue">
+              • {localize("Past performance doesn't guarantee future results")}
+            </Text>
+          </li>
+          <li>
+            <Text size="xs" color="blue">
+              • {localize("You can stop copying at any time")}
+            </Text>
+          </li>
+          <li>
+            <Text size="xs" color="blue">
+              • {localize("For MT5 copy trading, use MetaQuotes Signals")}
+            </Text>
+          </li>
+        </ul>
+      </div>
     </div>
   )
 })
 
 export default CopyTrading
+
