@@ -32,8 +32,39 @@ interface TradeParams {
   ask_price?: number
 }
 
+// Contract types that CAN be copied via API
+const COPYABLE_CONTRACTS = [
+  "CALL",
+  "PUT",
+  "DIGITOVER",
+  "DIGITUNDER",
+  "DIGITMATCH",
+  "DIGITDIFF",
+  "HIGHER",
+  "LOWER",
+  "ONETOUCH",
+  "NOTOUCH",
+  "EXPIRYRANGE",
+  "EXPIRYMISS",
+  "ASIANU",
+  "ASIAND",
+  "LBFLOATCALL",
+  "LBFLOATPUT",
+  "LBHIGHLOW",
+]
+
+// Contract types that CANNOT be copied
+const NON_COPYABLE_CONTRACTS = [
+  "MULTUP",
+  "MULTDOWN", // Multipliers
+  "ACCU", // Accumulators
+  "VANILLALONGCALL",
+  "VANILLALONGPUT", // Vanilla Options
+  "TURBOSLONG",
+  "TURBOSSHORT", // Turbos
+]
+
 const CopyTrading: React.FC = observer(() => {
-  // Load saved data from localStorage on component mount
   const loadSavedData = () => {
     try {
       const savedMasterToken = localStorage.getItem("copytrading_master_token") || ""
@@ -74,6 +105,11 @@ const CopyTrading: React.FC = observer(() => {
   const [logs, setLogs] = useState<string[]>([])
   const [showLogs, setShowLogs] = useState(true)
   const [copySettings, setCopySettings] = useState(savedSettings)
+  const [totalMasterTrades, setTotalMasterTrades] = useState(0)
+  const [totalCopiedTrades, setTotalCopiedTrades] = useState(0)
+  const [skippedTrades, setSkippedTrades] = useState(0)
+  const [appId, setAppId] = useState("75760") // Default to your custom app_id
+  const [isTestingConnection, setIsTestingConnection] = useState(false)
 
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
@@ -81,7 +117,8 @@ const CopyTrading: React.FC = observer(() => {
   const lastBalanceRef = useRef<number>(0)
   const processedContractsRef = useRef<Set<string>>(new Set())
   const pendingProposalsRef = useRef<Map<string, TradeParams>>(new Map())
-  const lastTradeTimeRef = useRef<number>(0)
+  const lastPortfolioCheckRef = useRef<number>(0)
+  const portfolioPollingRef = useRef<NodeJS.Timeout | null>(null)
 
   // Save data to localStorage whenever state changes
   useEffect(() => {
@@ -147,6 +184,34 @@ const CopyTrading: React.FC = observer(() => {
     console.log(`[CopyTrading] ${message}`)
   }
 
+  // 🎯 UNIVERSAL PORTFOLIO POLLING - Catches ALL trades
+  const startPortfolioPolling = () => {
+    if (portfolioPollingRef.current) {
+      clearInterval(portfolioPollingRef.current)
+    }
+
+    portfolioPollingRef.current = setInterval(() => {
+      if (masterWsRef.current && isActiveRef.current) {
+        masterWsRef.current.send(
+          JSON.stringify({
+            portfolio: 1,
+            req_id: Math.floor(Math.random() * 1000000),
+          }),
+        )
+      }
+    }, 2000) // Check every 2 seconds for new trades
+
+    addLog("🔄 Started universal portfolio polling (every 2s)", "success")
+  }
+
+  const stopPortfolioPolling = () => {
+    if (portfolioPollingRef.current) {
+      clearInterval(portfolioPollingRef.current)
+      portfolioPollingRef.current = null
+      addLog("⏹️ Stopped portfolio polling", "info")
+    }
+  }
+
   const connectMaster = async () => {
     if (!masterToken) {
       addLog("Please enter master API token", "error")
@@ -154,11 +219,12 @@ const CopyTrading: React.FC = observer(() => {
     }
 
     try {
-      addLog("Connecting to master account...")
-      const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089")
+      addLog(`Connecting to master account with app_id=${appId}...`)
+      // Use the configurable app_id
+      const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${appId}`)
 
       ws.onopen = () => {
-        addLog("Master WebSocket connected, authorizing...")
+        addLog(`Master WebSocket connected (app_id=${appId}), authorizing...`)
         ws.send(
           JSON.stringify({
             authorize: masterToken,
@@ -180,6 +246,7 @@ const CopyTrading: React.FC = observer(() => {
       ws.onclose = () => {
         addLog("Master WebSocket connection closed", "warning")
         setMasterWs(null)
+        stopPortfolioPolling()
       }
 
       setMasterWs(ws)
@@ -189,52 +256,53 @@ const CopyTrading: React.FC = observer(() => {
     }
   }
 
-  const extractTradeParamsFromData = (data: any): TradeParams | null => {
+  const isContractCopyable = (contractType: string): boolean => {
+    return COPYABLE_CONTRACTS.includes(contractType)
+  }
+
+  const extractTradeParamsFromContract = (contract: any): TradeParams | null => {
     try {
-      // Try to extract from different message types
-      let params: any = {}
-
-      if (data.transaction) {
-        params = data.transaction
-      } else if (data.echo_req) {
-        params = data.echo_req
-      } else if (data.buy) {
-        params = data.buy
-      } else {
+      if (!contract.contract_type || !contract.symbol || !contract.buy_price) {
         return null
       }
 
-      // Validate required fields
-      if (!params.contract_type || !params.symbol || !params.amount) {
-        addLog(`Missing required fields in trade data: ${JSON.stringify(params)}`, "warning")
-        return null
-      }
-
-      // Ensure amount is positive
-      const amount = Math.abs(Number(params.amount))
-      if (amount <= 0) {
-        addLog(`Invalid amount: ${params.amount}`, "error")
+      // Check if contract type is copyable
+      if (!isContractCopyable(contract.contract_type)) {
+        addLog(`❌ Contract type ${contract.contract_type} is NOT copyable via API`, "warning")
+        setSkippedTrades((prev) => prev + 1)
         return null
       }
 
       const tradeParams: TradeParams = {
-        contract_type: params.contract_type,
-        symbol: params.symbol,
-        amount: amount,
-        duration: params.duration || 5,
-        duration_unit: params.duration_unit || "t",
-        basis: params.basis || "stake",
-        currency: params.currency || "USD",
+        contract_type: contract.contract_type,
+        symbol: contract.symbol,
+        amount: Math.abs(contract.buy_price),
+        duration: contract.duration || 5,
+        duration_unit: contract.duration_unit || "t",
+        basis: "stake",
+        currency: contract.currency || "USD",
       }
 
-      // Add optional parameters
-      if (params.barrier) tradeParams.barrier = params.barrier.toString()
-      if (params.barrier2) tradeParams.barrier2 = params.barrier2.toString()
-      if (params.prediction !== undefined) tradeParams.prediction = params.prediction
+      // Extract barriers from contract details
+      if (contract.barrier) tradeParams.barrier = contract.barrier.toString()
+      if (contract.barrier2) tradeParams.barrier2 = contract.barrier2.toString()
+      if (contract.prediction !== undefined) tradeParams.prediction = contract.prediction
+
+      // Extract barriers from shortcode for digit contracts
+      if (
+        contract.shortcode &&
+        ["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contract.contract_type)
+      ) {
+        const shortcodeParts = contract.shortcode.split("_")
+        const barrierPart = shortcodeParts[shortcodeParts.length - 1]
+        if (/^\d$/.test(barrierPart)) {
+          tradeParams.barrier = barrierPart
+        }
+      }
 
       return tradeParams
     } catch (error) {
-      addLog(`Error extracting trade params: ${error.message}`, "error")
+      addLog(`Error extracting contract params: ${error.message}`, "error")
       return null
     }
   }
@@ -254,18 +322,17 @@ const CopyTrading: React.FC = observer(() => {
         lastBalanceRef.current = data.authorize.balance
         addLog(`Master authorized: ${data.authorize.loginid} ($${data.authorize.balance})`, "success")
 
-        // Subscribe to multiple streams for comprehensive trade detection
+        // Subscribe to multiple streams
         if (masterWsRef.current) {
-          // Portfolio for contract tracking
+          // Get initial portfolio
           masterWsRef.current.send(
             JSON.stringify({
               portfolio: 1,
-              subscribe: 1,
               req_id: 2,
             }),
           )
 
-          // Balance for trade detection
+          // Subscribe to balance changes
           masterWsRef.current.send(
             JSON.stringify({
               balance: 1,
@@ -274,7 +341,7 @@ const CopyTrading: React.FC = observer(() => {
             }),
           )
 
-          // Transaction stream for real-time detection
+          // Subscribe to transaction stream
           masterWsRef.current.send(
             JSON.stringify({
               transaction: 1,
@@ -296,8 +363,8 @@ const CopyTrading: React.FC = observer(() => {
           lastBalanceRef.current = newBalance
 
           if (balanceChange < 0) {
-            addLog(`Balance decreased: $${balanceChange.toFixed(2)} - Trade detected!`, "info")
-            // Get portfolio to find the new trade
+            addLog(`💰 Balance decreased: $${balanceChange.toFixed(2)} - Trade detected!`, "info")
+            // Trigger immediate portfolio check
             if (masterWsRef.current) {
               masterWsRef.current.send(
                 JSON.stringify({
@@ -313,63 +380,63 @@ const CopyTrading: React.FC = observer(() => {
       case "portfolio":
         if (data.portfolio && data.portfolio.contracts && isActiveRef.current) {
           const contracts = data.portfolio.contracts
+          const currentTime = Date.now()
 
-          // Find recent contracts (within last 10 seconds)
-          const recentContracts = contracts.filter((contract: any) => {
+          // Find NEW contracts (within last 30 seconds and not processed)
+          const newContracts = contracts.filter((contract: any) => {
             const contractTime = new Date(contract.date_start * 1000).getTime()
-            const now = Date.now()
-            const timeDiff = now - contractTime
-            return timeDiff < 10000 && !processedContractsRef.current.has(contract.contract_id.toString())
+            const timeDiff = currentTime - contractTime
+            const contractId = contract.contract_id.toString()
+
+            return (
+              timeDiff < 30000 && // Within last 30 seconds
+              timeDiff > 0 && // Not future contracts
+              !processedContractsRef.current.has(contractId) && // Not already processed
+              contract.buy_price > 0 // Valid trade
+            )
           })
 
-          if (recentContracts.length > 0) {
-            const latestContract = recentContracts[0]
-            const contractId = latestContract.contract_id.toString()
+          if (newContracts.length > 0) {
+            addLog(`🎯 Found ${newContracts.length} NEW trade(s) in portfolio`, "success")
 
-            processedContractsRef.current.add(contractId)
-            addLog(`Portfolio contract found: ${latestContract.contract_type} on ${latestContract.symbol}`, "info")
+            newContracts.forEach((contract: any) => {
+              const contractId = contract.contract_id.toString()
+              processedContractsRef.current.add(contractId)
 
-            // Create trade params from portfolio contract
-            const tradeParams: TradeParams = {
-              contract_type: latestContract.contract_type,
-              symbol: latestContract.symbol,
-              amount: latestContract.buy_price,
-              duration: latestContract.duration || 5,
-              duration_unit: latestContract.duration_unit || "t",
-              basis: "stake",
-              currency: latestContract.currency || "USD",
-            }
+              setTotalMasterTrades((prev) => prev + 1)
 
-            // Extract barriers from shortcode if available
-            if (latestContract.shortcode) {
-              const shortcodeParts = latestContract.shortcode.split("_")
+              addLog(
+                `📋 Master trade: ${contract.contract_type} on ${contract.symbol} ($${contract.buy_price})`,
+                "info",
+              )
 
-              // For digit contracts, extract barrier from shortcode
-              if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(latestContract.contract_type)) {
-                const barrierPart = shortcodeParts[shortcodeParts.length - 1]
-                if (/^\d$/.test(barrierPart)) {
-                  tradeParams.barrier = barrierPart
-                }
+              const tradeParams = extractTradeParamsFromContract(contract)
+              if (tradeParams) {
+                addLog(`✅ COPYABLE: ${contract.contract_type} - Replicating now...`, "success")
+                replicateExactTrade(tradeParams)
+              } else {
+                addLog(`❌ SKIPPED: ${contract.contract_type} - Not copyable or invalid`, "warning")
               }
-            }
-
-            // Add other barriers if present
-            if (latestContract.barrier) tradeParams.barrier = latestContract.barrier.toString()
-            if (latestContract.barrier2) tradeParams.barrier2 = latestContract.barrier2.toString()
-            if (latestContract.prediction !== undefined) tradeParams.prediction = latestContract.prediction
-
-            addLog(`📋 Portfolio trade params: ${JSON.stringify(tradeParams)}`, "info")
-            replicateExactTrade(tradeParams)
+            })
           }
         }
         break
 
       case "transaction":
         if (data.transaction && data.transaction.action === "buy" && isActiveRef.current) {
-          const tradeParams = extractTradeParamsFromData(data)
-          if (tradeParams) {
-            addLog(`🚨 Transaction trade detected: ${tradeParams.contract_type} on ${tradeParams.symbol}`, "success")
-            replicateExactTrade(tradeParams)
+          const transaction = data.transaction
+          const contractId = transaction.contract_id?.toString()
+
+          if (contractId && !processedContractsRef.current.has(contractId)) {
+            addLog(`🚨 Transaction stream trade: ${transaction.contract_type} on ${transaction.symbol}`, "info")
+
+            // Mark as processed to avoid duplicates
+            processedContractsRef.current.add(contractId)
+
+            const tradeParams = extractTradeParamsFromContract(transaction)
+            if (tradeParams) {
+              replicateExactTrade(tradeParams)
+            }
           }
         }
         break
@@ -379,8 +446,8 @@ const CopyTrading: React.FC = observer(() => {
           const proposalId = data.proposal.id
           const echoReq = data.echo_req
 
-          if (echoReq) {
-            const tradeParams = extractTradeParamsFromData({ echo_req: echoReq })
+          if (echoReq && isContractCopyable(echoReq.contract_type)) {
+            const tradeParams = extractTradeParamsFromContract(echoReq)
             if (tradeParams) {
               tradeParams.proposal_id = proposalId
               tradeParams.ask_price = data.proposal.ask_price
@@ -393,7 +460,8 @@ const CopyTrading: React.FC = observer(() => {
 
       case "buy":
         if (data.buy && data.buy.contract_id && isActiveRef.current) {
-          addLog(`💰 Master executed trade: ${data.buy.contract_id}`, "success")
+          const contractId = data.buy.contract_id.toString()
+          addLog(`💰 Master executed trade: ${contractId}`, "success")
 
           // Check if we have stored proposal details
           const echoReq = data.echo_req
@@ -401,7 +469,8 @@ const CopyTrading: React.FC = observer(() => {
             const proposalId = echoReq.buy
             const storedParams = pendingProposalsRef.current.get(proposalId)
 
-            if (storedParams) {
+            if (storedParams && !processedContractsRef.current.has(contractId)) {
+              processedContractsRef.current.add(contractId)
               addLog(`🎯 Replicating from stored proposal: ${proposalId}`, "info")
               replicateExactTrade(storedParams)
               pendingProposalsRef.current.delete(proposalId)
@@ -443,8 +512,9 @@ const CopyTrading: React.FC = observer(() => {
 
   const connectClient = async (client: ClientConnection) => {
     try {
-      addLog(`Connecting client ${client.id}...`)
-      const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089")
+      addLog(`Connecting client ${client.id} with app_id=${appId}...`)
+      // Use the configurable app_id
+      const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${appId}`)
 
       ws.onopen = () => {
         addLog(`Client ${client.id} WebSocket connected, authorizing...`)
@@ -513,7 +583,6 @@ const CopyTrading: React.FC = observer(() => {
 
       case "balance":
         updateClient(clientId, { balance: data.balance.balance })
-        addLog(`Client ${clientId} balance updated: $${data.balance.balance.toFixed(2)}`)
         break
 
       case "proposal":
@@ -535,12 +604,13 @@ const CopyTrading: React.FC = observer(() => {
         break
 
       case "buy":
-        if (data.buy) {
+        if (data.buy && data.buy.contract_id) {
           updateClient(clientId, {
             lastTrade: data.buy,
             totalCopiedTrades: (clients.find((c) => c.id === clientId)?.totalCopiedTrades || 0) + 1,
           })
-          addLog(`🎯 EXACT TRADE COPIED to client ${clientId}: ${data.buy.contract_id}`, "success")
+          setTotalCopiedTrades((prev) => prev + 1)
+          addLog(`🎯 TRADE COPIED to client ${clientId}: ${data.buy.contract_id}`, "success")
         } else if (data.buy && data.buy.error) {
           addLog(`Client ${clientId} buy error: ${data.buy.error}`, "error")
         }
@@ -565,6 +635,12 @@ const CopyTrading: React.FC = observer(() => {
         `ERROR: Invalid basic parameters - contract_type: ${contract_type}, symbol: ${symbol}, amount: ${amount}`,
         "error",
       )
+      return false
+    }
+
+    // Check if copyable
+    if (!isContractCopyable(contract_type)) {
+      addLog(`ERROR: ${contract_type} is not copyable via API`, "error")
       return false
     }
 
@@ -607,34 +683,31 @@ const CopyTrading: React.FC = observer(() => {
       return
     }
 
-    addLog(`🎯 EXACT REPLICATION to ${connectedClients.length} client(s)`, "success")
-    addLog(`📋 VALIDATED TRADE PARAMS: ${JSON.stringify(tradeParams)}`, "info")
+    addLog(`🎯 REPLICATING to ${connectedClients.length} client(s): ${tradeParams.contract_type}`, "success")
 
     connectedClients.forEach((client, index) => {
       setTimeout(() => {
         try {
-          // Calculate amount - use exact copy or apply ratio
+          // Calculate amount
           let amount = copySettings.exactCopy ? tradeParams.amount : tradeParams.amount * copySettings.copyRatio
 
-          // Apply min/max limits only if not exact copy
           if (!copySettings.exactCopy) {
             amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
           }
 
-          // Ensure amount is positive and reasonable
           amount = Math.abs(amount)
           if (amount <= 0) {
             addLog(`Client ${client.id} invalid amount: ${amount}`, "error")
             return
           }
 
-          // Check client balance (leave 20% buffer)
+          // Check client balance
           if (amount > client.balance * 0.8) {
             addLog(`Client ${client.id} insufficient balance for $${amount} trade`, "warning")
             return
           }
 
-          // Create EXACT proposal request
+          // Create proposal request
           const proposalRequest: any = {
             proposal: 1,
             amount: amount,
@@ -647,27 +720,23 @@ const CopyTrading: React.FC = observer(() => {
             req_id: Math.floor(Math.random() * 1000000),
           }
 
-          // Add required parameters based on contract type
+          // Add required parameters
           if (tradeParams.barrier) {
             proposalRequest.barrier = tradeParams.barrier
-            addLog(`Including barrier: ${tradeParams.barrier}`)
           }
           if (tradeParams.barrier2) {
             proposalRequest.barrier2 = tradeParams.barrier2
-            addLog(`Including barrier2: ${tradeParams.barrier2}`)
           }
           if (tradeParams.prediction !== undefined) {
             proposalRequest.prediction = tradeParams.prediction
-            addLog(`Including prediction: ${tradeParams.prediction}`)
           }
 
-          addLog(`🚀 SENDING PROPOSAL to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
-          console.log(`📤 Full Proposal for client ${client.id}:`, proposalRequest)
+          addLog(`🚀 SENDING to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
+          console.log(`📤 Proposal for client ${client.id}:`, proposalRequest)
 
           client.ws?.send(JSON.stringify(proposalRequest))
         } catch (error) {
           addLog(`Failed to replicate trade to client ${client.id}: ${error.message}`, "error")
-          console.error(`Replication error for client ${client.id}:`, error)
         }
       }, index * 100)
     })
@@ -713,9 +782,13 @@ const CopyTrading: React.FC = observer(() => {
     setCopySettings({ copyRatio: 1, maxAmount: 100, minAmount: 1, exactCopy: true })
     setIsDemo(true)
     setIsActive(false)
+    setTotalMasterTrades(0)
+    setTotalCopiedTrades(0)
+    setSkippedTrades(0)
 
     if (masterWs) masterWs.close()
     clients.forEach((client) => client.ws?.close())
+    stopPortfolioPolling()
 
     addLog("All data cleared and connections closed", "info")
   }
@@ -747,12 +820,19 @@ const CopyTrading: React.FC = observer(() => {
 
     setIsActive(!isActive)
     if (!isActive) {
-      addLog("🎯 EXACT COPY TRADING STARTED - Multi-stream monitoring...", "success")
+      addLog("🎯 UNIVERSAL COPY TRADING STARTED - All contract types monitored!", "success")
       processedContractsRef.current.clear()
       pendingProposalsRef.current.clear()
-      lastTradeTimeRef.current = Date.now()
+      lastPortfolioCheckRef.current = Date.now()
+      startPortfolioPolling()
+
+      // Reset counters
+      setTotalMasterTrades(0)
+      setTotalCopiedTrades(0)
+      setSkippedTrades(0)
     } else {
       addLog("COPY TRADING STOPPED", "warning")
+      stopPortfolioPolling()
     }
   }
 
@@ -778,6 +858,37 @@ const CopyTrading: React.FC = observer(() => {
     addLog("All connections closed")
   }
 
+  const testConnection = async () => {
+    setIsTestingConnection(true)
+    addLog(`Testing WebSocket connection with app_id=${appId}...`, "info")
+
+    try {
+      const testWs = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${appId}`)
+
+      const timeout = setTimeout(() => {
+        testWs.close()
+        addLog(`❌ Connection test failed - timeout with app_id=${appId}`, "error")
+        setIsTestingConnection(false)
+      }, 10000)
+
+      testWs.onopen = () => {
+        clearTimeout(timeout)
+        addLog(`✅ Connection test successful with app_id=${appId}`, "success")
+        testWs.close()
+        setIsTestingConnection(false)
+      }
+
+      testWs.onerror = () => {
+        clearTimeout(timeout)
+        addLog(`❌ Connection test failed with app_id=${appId}`, "error")
+        setIsTestingConnection(false)
+      }
+    } catch (error) {
+      addLog(`❌ Connection test error: ${error.message}`, "error")
+      setIsTestingConnection(false)
+    }
+  }
+
   return (
     <div className="copy-trading-compact">
       {/* Header */}
@@ -791,7 +902,72 @@ const CopyTrading: React.FC = observer(() => {
           </button>
         </div>
         <div className={`ct-status ${isActive ? "active" : "inactive"}`}>
-          {isActive ? "🎯 EXACT COPY MODE" : "🔴 INACTIVE"}
+          {isActive ? "🎯 UNIVERSAL COPY MODE" : "🔴 INACTIVE"}
+        </div>
+      </div>
+
+      {/* App ID Configuration */}
+      <div className="ct-section">
+        <h3>🔧 WebSocket Configuration</h3>
+        <div className="ct-input-row">
+          <select
+            value={appId}
+            onChange={(e) => setAppId(e.target.value)}
+            className="ct-input"
+            disabled={masterWs || clients.some((c) => c.ws)}
+          >
+            <option value="75760">app_id=75760 (Recommended - Better Detection)</option>
+            <option value="1089">app_id=1089 (Default - Basic Access)</option>
+            <option value="custom">Custom App ID</option>
+          </select>
+          {appId === "custom" && (
+            <input
+              type="text"
+              placeholder="Enter custom app_id"
+              onChange={(e) => setAppId(e.target.value)}
+              className="ct-input"
+            />
+          )}
+          <button onClick={testConnection} className="ct-btn ct-btn-secondary" disabled={isTestingConnection}>
+            {isTestingConnection ? "🔄 Testing..." : "🧪 Test Connection"}
+          </button>
+        </div>
+        <div style={{ fontSize: "0.8rem", color: "#666", marginTop: "0.5rem" }}>
+          <strong>app_id=75760:</strong> Higher rate limits, better real-time detection
+          <br />
+          <strong>app_id=1089:</strong> Basic access, may miss some trades
+        </div>
+      </div>
+
+      {/* Statistics */}
+      <div className="ct-section">
+        <h3>📊 Copy Statistics</h3>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+            gap: "1rem",
+            fontSize: "0.9rem",
+          }}
+        >
+          <div style={{ textAlign: "center", padding: "0.5rem", background: "#e3f2fd", borderRadius: "0.4rem" }}>
+            <div style={{ fontWeight: "bold", fontSize: "1.2rem", color: "#1976d2" }}>{totalMasterTrades}</div>
+            <div>Master Trades</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "0.5rem", background: "#e8f5e8", borderRadius: "0.4rem" }}>
+            <div style={{ fontWeight: "bold", fontSize: "1.2rem", color: "#388e3c" }}>{totalCopiedTrades}</div>
+            <div>Copied Trades</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "0.5rem", background: "#fff3e0", borderRadius: "0.4rem" }}>
+            <div style={{ fontWeight: "bold", fontSize: "1.2rem", color: "#f57c00" }}>{skippedTrades}</div>
+            <div>Skipped</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "0.5rem", background: "#fce4ec", borderRadius: "0.4rem" }}>
+            <div style={{ fontWeight: "bold", fontSize: "1.2rem", color: "#c2185b" }}>
+              {totalMasterTrades > 0 ? Math.round((totalCopiedTrades / totalMasterTrades) * 100) : 0}%
+            </div>
+            <div>Success Rate</div>
+          </div>
         </div>
       </div>
 
@@ -924,7 +1100,7 @@ const CopyTrading: React.FC = observer(() => {
           className={`ct-main-btn ${isActive ? "stop" : "start"}`}
           disabled={!masterWs || clients.filter((c) => c.status === "connected").length === 0}
         >
-          {isActive ? "⏹️ Stop Exact Copy" : "🎯 Start Exact Copy"}
+          {isActive ? "⏹️ Stop Universal Copy" : "🎯 Start Universal Copy"}
         </button>
         <button onClick={sendTestTrade} className="ct-btn ct-btn-secondary" disabled={!isActive}>
           🧪 Test Trade
@@ -943,7 +1119,7 @@ const CopyTrading: React.FC = observer(() => {
       {/* Activity Log */}
       {showLogs && (
         <div className="ct-section">
-          <h3>📋 Activity Log (Multi-Stream Detection)</h3>
+          <h3>📋 Activity Log (Universal Detection)</h3>
           <div className="ct-logs">
             {logs.length === 0 ? (
               <div className="ct-no-logs">No activity yet...</div>
@@ -958,45 +1134,36 @@ const CopyTrading: React.FC = observer(() => {
         </div>
       )}
 
+      {/* Contract Type Support */}
+      <div className="ct-section">
+        <h3>📋 Contract Type Support</h3>
+        <div style={{ fontSize: "0.8rem", lineHeight: "1.4" }}>
+          <div style={{ marginBottom: "0.8rem" }}>
+            <strong style={{ color: "#28a745" }}>✅ COPYABLE:</strong>
+            <div style={{ marginLeft: "1rem", color: "#666" }}>
+              CALL/PUT, DIGITOVER/DIGITUNDER, DIGITMATCH/DIGITDIFF, HIGHER/LOWER, ONETOUCH/NOTOUCH,
+              EXPIRYRANGE/EXPIRYMISS
+            </div>
+          </div>
+          <div>
+            <strong style={{ color: "#dc3545" }}>❌ NOT COPYABLE:</strong>
+            <div style={{ marginLeft: "1rem", color: "#666" }}>
+              Multipliers (MULTUP/MULTDOWN), Accumulators (ACCU), Vanilla Options, Turbos
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Debug Info */}
       <div className="ct-section">
         <h3>🔧 Debug Info</h3>
         <div style={{ fontSize: "0.8rem", fontFamily: "monospace" }}>
           <p>Master WS: {masterWs ? "✅ Connected" : "❌ Disconnected"}</p>
-          <p>Exact Copy Mode: {isActive ? "🎯 Active" : "❌ Inactive"}</p>
+          <p>Universal Copy Mode: {isActive ? "🎯 Active" : "❌ Inactive"}</p>
+          <p>Portfolio Polling: {portfolioPollingRef.current ? "✅ Running" : "❌ Stopped"}</p>
           <p>Connected Clients: {clients.filter((c) => c.status === "connected").length}</p>
-          <p>Pending Proposals: {pendingProposalsRef.current.size}</p>
           <p>Processed Contracts: {processedContractsRef.current.size}</p>
-          <p>Multi-Stream Detection: ✅ Enabled</p>
-          <p>Data Persistence: ✅ Enabled</p>
-        </div>
-      </div>
-
-      {/* Instructions */}
-      <div className="ct-section">
-        <h3>📖 Fixed Issues</h3>
-        <div style={{ fontSize: "0.8rem", lineHeight: "1.4" }}>
-          <p>
-            <strong>✅ FIXED:</strong> contract_type undefined error
-          </p>
-          <p>
-            <strong>✅ FIXED:</strong> Negative amount error
-          </p>
-          <p>
-            <strong>✅ FIXED:</strong> Missing duration/duration_unit
-          </p>
-          <p>
-            <strong>✅ ADDED:</strong> Multi-stream detection (portfolio + transaction + balance)
-          </p>
-          <p>
-            <strong>✅ ADDED:</strong> Comprehensive parameter validation
-          </p>
-          <p>
-            <strong>✅ ADDED:</strong> Shortcode barrier extraction for digit contracts
-          </p>
-          <p>
-            <strong>🎯 Result:</strong> Should now copy trades exactly with all required parameters!
-          </p>
+          <p>Pending Proposals: {pendingProposalsRef.current.size}</p>
         </div>
       </div>
 
