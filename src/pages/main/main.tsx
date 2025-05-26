@@ -33,11 +33,13 @@ import Dashboard from "../dashboard"
 import RunStrategy from "../dashboard/run-strategy"
 import Strategies from "../strategies/strategies"
 import "./main.scss"
+import { Copy } from "@phosphor-icons/react"
 
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
 const Analysis = lazy(() => import("../analysis/analysis"))
-const FreeBots = lazy(() => import("../free-bots")) // Add FreeBots import
+const FreeBots = lazy(() => import("../free-bots"))
+const CopyTrading = lazy(() => import("../copy-trading")) // Add CopyTrading import
 
 // Declare Blockly
 declare var Blockly: any
@@ -67,9 +69,9 @@ const AppWrapper = observer(() => {
   } = run_panel
   const { is_open } = quick_strategy
   const { clear } = summary_card
-  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS } = DBOT_TABS // Add FREE_BOTS
+  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS, COPY_TRADING } = DBOT_TABS // Add COPY_TRADING
   const init_render = React.useRef(true)
-  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies", "free-bots"] // Add free-bots
+  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies", "free-bots", "copy-trading"] // Add copy-trading
   const { isDesktop } = useDevice()
   const location = useLocation()
   const navigate = useNavigate()
@@ -78,21 +80,19 @@ const AppWrapper = observer(() => {
 
   // Force all tabs to be visible
   useEffect(() => {
-    // This ensures the Analysis Tools and Strategies tabs are always visible
     if (typeof window !== "undefined") {
       window.localStorage.setItem("show_analysis_tools", "true")
       window.localStorage.setItem("show_strategies", "true")
-      window.localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+      window.localStorage.setItem("show_free_bots", "true")
+      window.localStorage.setItem("show_copy_trading", "true") // Add Copy Trading visibility
       ;(window as any).SHOW_ALL_DBOT_TABS = true
     }
   }, [])
 
   // Add effect to hide SmartTrader, Deriv Trader, and Traders Hub
   useEffect(() => {
-    // Create a style element to inject CSS
     const style = document.createElement("style")
     style.innerHTML = `
-      /* Hide platform switcher and Trader's Hub elements */
       .platform-switcher,
       .platform-dropdown,
       .traders-hub-link,
@@ -116,7 +116,6 @@ const AppWrapper = observer(() => {
     `
     document.head.appendChild(style)
 
-    // Also try to remove elements directly
     const removeElements = () => {
       const selectors = [
         ".platform-switcher",
@@ -137,7 +136,6 @@ const AppWrapper = observer(() => {
       })
     }
 
-    // Run immediately and then periodically to catch dynamically added elements
     removeElements()
     const interval = setInterval(removeElements, 1000)
 
@@ -170,7 +168,7 @@ const AppWrapper = observer(() => {
         },
         {
           root: null,
-          threshold: 0.5, // set offset 0.1 means trigger if atleast 10% of element in viewport
+          threshold: 0.5,
         },
       )
 
@@ -184,7 +182,7 @@ const AppWrapper = observer(() => {
         },
         {
           root: null,
-          threshold: 0.5, // set offset 0.1 means trigger if atleast 10% of element in viewport
+          threshold: 0.5,
         },
       )
 
@@ -210,7 +208,6 @@ const AppWrapper = observer(() => {
     }
   }, [clear, connectionStatus, setWebSocketState, stopBot])
 
-  // Update tab shadows height to match bot builder height
   const updateTabShadowsHeight = () => {
     const botBuilderEl = document.getElementById("id-bot-builder")
     const leftShadow = document.querySelector(".tabs-shadow--left") as HTMLElement
@@ -224,19 +221,14 @@ const AppWrapper = observer(() => {
   }
 
   React.useEffect(() => {
-    // Run on mount and when active tab changes
     updateTabShadowsHeight()
 
-    // ALWAYS ensure tabs are visible, especially after login
     if (typeof window !== "undefined") {
-      // Force all tabs to be visible by setting localStorage flags
       localStorage.setItem("show_analysis_tools", "true")
       localStorage.setItem("show_strategies", "true")
-      localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
-
-      // Add a global flag to indicate these tabs should be visible
+      localStorage.setItem("show_free_bots", "true")
+      localStorage.setItem("show_copy_trading", "true") // Add Copy Trading visibility
       ;(window as any).SHOW_ALL_DBOT_TABS = true
-
       console.log("Ensuring all tabs are visible after potential login")
     }
 
@@ -255,7 +247,6 @@ const AppWrapper = observer(() => {
       setActiveTour("")
     }
 
-    // Prevent scrolling when tutorial tab is active (only on mobile)
     const mainElement = document.querySelector(".main__container")
     if (active_tab === TUTORIAL && !isDesktop) {
       document.body.style.overflow = "hidden"
@@ -270,24 +261,20 @@ const AppWrapper = observer(() => {
     }
   }, [active_tab])
 
-  // Add this new useEffect to monitor login state changes
   React.useEffect(() => {
-    // Check if user just logged in by looking at the client object
     const isLoggedIn = !!client?.loginid
 
     if (isLoggedIn) {
       console.log("User logged in, ensuring tabs are visible")
-      // Force all tabs to be visible
       if (typeof window !== "undefined") {
         localStorage.setItem("show_analysis_tools", "true")
         localStorage.setItem("show_strategies", "true")
-        localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+        localStorage.setItem("show_free_bots", "true")
+        localStorage.setItem("show_copy_trading", "true") // Add Copy Trading visibility
         ;(window as any).SHOW_ALL_DBOT_TABS = true
 
-        // Force a re-render of the tabs
         const tabsContainer = document.querySelector(".main__tabs")
         if (tabsContainer) {
-          // This is a hack to force a re-render
           tabsContainer.classList.add("force-update")
           setTimeout(() => {
             tabsContainer.classList.remove("force-update")
@@ -312,16 +299,13 @@ const AppWrapper = observer(() => {
     }, 100)
 
     return () => {
-      clearTimeout(trashcan_init_id) // Clear the timeout on unmount
+      clearTimeout(trashcan_init_id)
     }
-    //eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active_tab, is_drawer_open])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
     if (dashboard_strategies.length > 0) {
-      // Needed to pass this to the Callback Queue as on tab changes
-      // document title getting override by 'Bot | Deriv' only
       timer = setTimeout(() => {
         updateWorkspaceName()
       })
@@ -342,7 +326,6 @@ const AppWrapper = observer(() => {
         }, 10)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [active_tab],
   )
 
@@ -365,17 +348,14 @@ const AppWrapper = observer(() => {
               }
             : {}),
         }).catch((err) => {
-          // eslint-disable-next-line no-console
           console.error(err)
         })
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error(error)
       }
     }
   }
 
-  // Make dashboard available globally for the Strategies component
   if (typeof window !== "undefined") {
     window.dashboard = {
       setActiveTab: setActiveTab,
@@ -446,7 +426,6 @@ const AppWrapper = observer(() => {
                   </Suspense>
                 </div>
               </div>
-              {/* Analysis Tab */}
               <div
                 label={
                   <>
@@ -465,7 +444,6 @@ const AppWrapper = observer(() => {
                   <Analysis />
                 </Suspense>
               </div>
-              {/* Strategies Tab */}
               <div
                 label={
                   <>
@@ -482,7 +460,6 @@ const AppWrapper = observer(() => {
               >
                 <Strategies />
               </div>
-              {/* Free Bots Tab */}
               <div
                 label={
                   <>
@@ -494,6 +471,20 @@ const AppWrapper = observer(() => {
               >
                 <Suspense fallback={<ChunkLoader message={localize("Please wait, loading free bots...")} />}>
                   <FreeBots />
+                </Suspense>
+              </div>
+              {/* Copy Trading Tab */}
+              <div
+                label={
+                  <>
+                    <Copy className="h-4 w-4" />
+                    <Localize i18n_default_text="Copy Trading" />
+                  </>
+                }
+                id="id-copy-trading"
+              >
+                <Suspense fallback={<ChunkLoader message={localize("Please wait, loading copy trading...")} />}>
+                  <CopyTrading />
                 </Suspense>
               </div>
             </Tabs>
@@ -523,7 +514,7 @@ const AppWrapper = observer(() => {
         portal_element_id="modal_root"
         title={dialog_options?.title}
         login={handleLoginGeneration}
-        dismissable={dialog_options?.dismissable} // Prevents closing on outside clicks
+        dismissable={dialog_options?.dismissable}
         is_closed_on_cancel={dialog_options?.is_closed_on_cancel}
       >
         {dialog_options?.message}
