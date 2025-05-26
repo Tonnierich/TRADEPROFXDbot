@@ -179,7 +179,7 @@
       </block>
     </statement>
   </block>
-  <block type="after_purchase" id=";iQR4C+tQ2T8Z-urpL{I" x="2059" y="60">
+  <block type="after_purchase" id=";iQR4C+tQ2T8Z-urpL{I" x="2052" y="60">
     <statement name="AFTERPURCHASE_STACK">
       <block type="variables_set" id="$kwFt?mZP~qi3*Salegw">
         <field name="VAR" id="[6vQIpq(Ibqar$9a5L?s">Prediction</field>
