@@ -241,8 +241,8 @@ const FreeBots: React.FC = () => {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
-          gap: "2rem",
+          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", // Reduced from 350px to 280px
+          gap: "1.5rem", // Reduced gap
           marginBottom: "2rem",
         }}
       >
@@ -275,7 +275,7 @@ const FreeBots: React.FC = () => {
   )
 }
 
-// Bot Card Component
+// Bot Card Component - Compact Version
 const BotCard: React.FC<{
   bot: BotData
   isLoading: boolean
@@ -287,15 +287,16 @@ const BotCard: React.FC<{
       style={{
         backgroundColor: "var(--general-main-1)",
         border: "1px solid var(--general-section-3)",
-        borderRadius: "0.8rem",
-        padding: "1.6rem",
+        borderRadius: "0.6rem",
+        padding: "1rem",
         transition: "all 0.2s ease",
         height: "fit-content",
         position: "relative",
+        maxHeight: "320px", // Limit card height
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.1)"
-        e.currentTarget.style.transform = "translateY(-2px)"
+        e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.1)"
+        e.currentTarget.style.transform = "translateY(-1px)"
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.boxShadow = "none"
@@ -303,19 +304,19 @@ const BotCard: React.FC<{
       }}
     >
       {/* Badges */}
-      <div style={{ position: "absolute", top: "1rem", right: "1rem", display: "flex", gap: "0.4rem" }}>
+      <div style={{ position: "absolute", top: "0.5rem", right: "0.5rem", display: "flex", gap: "0.2rem" }}>
         {bot.isFeatured && (
           <span
             style={{
               backgroundColor: "#8b5cf6",
               color: "white",
-              padding: "0.2rem 0.6rem",
-              borderRadius: "1rem",
-              fontSize: "0.9rem",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "0.8rem",
+              fontSize: "0.7rem",
               fontWeight: "600",
             }}
           >
-            ⭐ Featured
+            ⭐
           </span>
         )}
         {bot.isPopular && (
@@ -323,29 +324,30 @@ const BotCard: React.FC<{
             style={{
               backgroundColor: "#f59e0b",
               color: "white",
-              padding: "0.2rem 0.6rem",
-              borderRadius: "1rem",
-              fontSize: "0.9rem",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "0.8rem",
+              fontSize: "0.7rem",
               fontWeight: "600",
             }}
           >
-            🔥 Popular
+            🔥
           </span>
         )}
       </div>
 
       {/* Header */}
-      <div style={{ marginBottom: "1.2rem", marginTop: bot.isFeatured || bot.isPopular ? "2rem" : "0" }}>
+      <div style={{ marginBottom: "0.8rem", marginTop: bot.isFeatured || bot.isPopular ? "1.2rem" : "0" }}>
         <div
-          style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.8rem" }}
+          style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.4rem" }}
         >
           <h3
             style={{
-              fontSize: "1.6rem",
+              fontSize: "1.2rem",
               fontWeight: "bold",
               color: "var(--text-prominent)",
               margin: "0",
-              lineHeight: "1.3",
+              lineHeight: "1.2",
+              maxWidth: "70%",
             }}
           >
             {bot.name}
@@ -354,80 +356,93 @@ const BotCard: React.FC<{
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.4rem",
+              gap: "0.2rem",
               color: "var(--text-less-prominent)",
-              fontSize: "1.2rem",
+              fontSize: "0.9rem",
             }}
           >
             ⭐ {bot.rating}
           </div>
         </div>
-        <p style={{ color: "var(--text-less-prominent)", fontSize: "1.3rem", lineHeight: "1.4", margin: "0" }}>
+        <p
+          style={{
+            color: "var(--text-less-prominent)",
+            fontSize: "1rem",
+            lineHeight: "1.3",
+            margin: "0",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
           {bot.description}
         </p>
       </div>
 
       {/* Tags */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", marginBottom: "1.2rem" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.8rem" }}>
         <span
           style={{
             backgroundColor: DIFFICULTY_COLORS[bot.difficulty],
             color: "white",
-            padding: "0.2rem 0.6rem",
-            borderRadius: "1rem",
-            fontSize: "0.9rem",
+            padding: "0.1rem 0.4rem",
+            borderRadius: "0.8rem",
+            fontSize: "0.7rem",
             fontWeight: "600",
           }}
         >
           {bot.difficulty}
         </span>
-        {bot.tags.slice(0, 3).map((tag) => (
+        {bot.tags.slice(0, 2).map((tag) => (
           <span
             key={tag}
             style={{
               backgroundColor: "var(--general-section-1)",
               color: "var(--text-prominent)",
-              padding: "0.2rem 0.6rem",
-              borderRadius: "1rem",
-              fontSize: "0.9rem",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "0.8rem",
+              fontSize: "0.7rem",
               fontWeight: "500",
             }}
           >
             {tag}
           </span>
         ))}
-        {bot.tags.length > 3 && (
+        {bot.tags.length > 2 && (
           <span
             style={{
               backgroundColor: "var(--general-section-2)",
               color: "var(--text-less-prominent)",
-              padding: "0.2rem 0.6rem",
-              borderRadius: "1rem",
-              fontSize: "0.9rem",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "0.8rem",
+              fontSize: "0.7rem",
               fontWeight: "500",
             }}
           >
-            +{bot.tags.length - 3}
+            +{bot.tags.length - 2}
           </span>
         )}
       </div>
 
       {/* Details */}
-      <div style={{ marginBottom: "1.2rem" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "1.2rem" }}>
+      <div style={{ marginBottom: "0.8rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem", fontSize: "0.9rem" }}>
           <span style={{ color: "var(--text-less-prominent)" }}>Strategy:</span>
           <strong style={{ color: "var(--text-prominent)", fontWeight: "600" }}>{bot.strategy}</strong>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "1.2rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem", fontSize: "0.9rem" }}>
           <span style={{ color: "var(--text-less-prominent)" }}>Market:</span>
-          <strong style={{ color: "var(--text-prominent)", fontWeight: "600" }}>{bot.market}</strong>
+          <strong style={{ color: "var(--text-prominent)", fontWeight: "600" }}>
+            {bot.market.length > 15 ? bot.market.substring(0, 15) + "..." : bot.market}
+          </strong>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.4rem", fontSize: "1.2rem" }}>
-          <span style={{ color: "var(--text-less-prominent)" }}>Initial Stake:</span>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "0.2rem", fontSize: "0.9rem" }}>
+          <span style={{ color: "var(--text-less-prominent)" }}>Stake:</span>
           <strong style={{ color: "var(--text-prominent)", fontWeight: "600" }}>${bot.initialStake}</strong>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "1.2rem" }}>
-          <span style={{ color: "var(--text-less-prominent)" }}>Profit Target:</span>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9rem" }}>
+          <span style={{ color: "var(--text-less-prominent)" }}>Target:</span>
           <strong style={{ color: "var(--purchase-main-1)", fontWeight: "600" }}>${bot.profitThreshold}</strong>
         </div>
       </div>
@@ -436,26 +451,23 @@ const BotCard: React.FC<{
       <div
         style={{
           display: "flex",
-          gap: "1.2rem",
-          marginBottom: "1.6rem",
-          paddingTop: "1.2rem",
+          gap: "0.8rem",
+          marginBottom: "1rem",
+          paddingTop: "0.6rem",
           borderTop: "1px solid var(--general-section-2)",
-          fontSize: "1.1rem",
+          fontSize: "0.8rem",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--text-less-prominent)" }}>
-          📥 {bot.downloads.toLocaleString()}
+        <div style={{ display: "flex", alignItems: "center", gap: "0.2rem", color: "var(--text-less-prominent)" }}>
+          📥 {bot.downloads > 999 ? `${(bot.downloads / 1000).toFixed(1)}k` : bot.downloads}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--text-less-prominent)" }}>
-          📅 {new Date(bot.createdDate).toLocaleDateString()}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", color: "var(--text-less-prominent)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.2rem", color: "var(--text-less-prominent)" }}>
           👤 {bot.author}
         </div>
       </div>
 
       {/* Actions */}
-      <div style={{ display: "flex", gap: "0.8rem" }}>
+      <div style={{ display: "flex", gap: "0.6rem" }}>
         <button
           onClick={onLoad}
           disabled={isLoading}
@@ -464,35 +476,36 @@ const BotCard: React.FC<{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "0.4rem",
-            padding: "0.8rem 1.6rem",
+            gap: "0.3rem",
+            padding: "0.6rem 1rem",
             backgroundColor: isLoading ? "var(--general-section-2)" : "var(--purchase-main-1)",
             color: "white",
             border: "none",
-            borderRadius: "0.4rem",
-            fontSize: "1.2rem",
+            borderRadius: "0.3rem",
+            fontSize: "1rem",
             fontWeight: "600",
             cursor: isLoading ? "not-allowed" : "pointer",
             opacity: isLoading ? 0.7 : 1,
             transition: "all 0.2s ease",
           }}
         >
-          {isLoading ? "⏳ Loading..." : "▶️ Load Bot"}
+          {isLoading ? "⏳" : "▶️"} {isLoading ? "Loading..." : "Load"}
         </button>
         <button
           onClick={onDownload}
           style={{
-            width: "3.2rem",
-            height: "3.2rem",
+            width: "2.8rem",
+            height: "2.8rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: "var(--general-section-1)",
             color: "var(--text-prominent)",
             border: "1px solid var(--general-section-3)",
-            borderRadius: "0.4rem",
+            borderRadius: "0.3rem",
             cursor: "pointer",
             transition: "all 0.2s ease",
+            fontSize: "0.9rem",
           }}
         >
           📥
