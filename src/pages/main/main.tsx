@@ -37,7 +37,7 @@ import "./main.scss"
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
 const Analysis = lazy(() => import("../analysis/analysis"))
-const FreeBots = lazy(() => import("../free-bots")) // Add FreeBots import
+const FreeBots = lazy(() => import("../free-bots/free-bots")) // ONLY CHANGE: Import the correct FreeBots component
 
 // Declare Blockly
 declare var Blockly: any
@@ -412,7 +412,7 @@ const AppWrapper = observer(() => {
                   </>
                 }
                 id="id-bot-builder"
-              />
+              ></div>
               <div
                 label={
                   <>
@@ -533,3 +533,4 @@ const AppWrapper = observer(() => {
 })
 
 export default AppWrapper
+
