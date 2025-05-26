@@ -44,7 +44,7 @@ const CopyTrading: React.FC = observer(() => {
             copyRatio: 1,
             maxAmount: 100,
             minAmount: 1,
-            exactCopy: true, // New setting for exact replication
+            exactCopy: true,
           }),
       )
       const savedIsDemo = localStorage.getItem("copytrading_is_demo") === "true"
@@ -81,6 +81,7 @@ const CopyTrading: React.FC = observer(() => {
   const lastBalanceRef = useRef<number>(0)
   const processedContractsRef = useRef<Set<string>>(new Set())
   const pendingProposalsRef = useRef<Map<string, TradeParams>>(new Map())
+  const lastTradeTimeRef = useRef<number>(0)
 
   // Save data to localStorage whenever state changes
   useEffect(() => {
@@ -188,6 +189,56 @@ const CopyTrading: React.FC = observer(() => {
     }
   }
 
+  const extractTradeParamsFromData = (data: any): TradeParams | null => {
+    try {
+      // Try to extract from different message types
+      let params: any = {}
+
+      if (data.transaction) {
+        params = data.transaction
+      } else if (data.echo_req) {
+        params = data.echo_req
+      } else if (data.buy) {
+        params = data.buy
+      } else {
+        return null
+      }
+
+      // Validate required fields
+      if (!params.contract_type || !params.symbol || !params.amount) {
+        addLog(`Missing required fields in trade data: ${JSON.stringify(params)}`, "warning")
+        return null
+      }
+
+      // Ensure amount is positive
+      const amount = Math.abs(Number(params.amount))
+      if (amount <= 0) {
+        addLog(`Invalid amount: ${params.amount}`, "error")
+        return null
+      }
+
+      const tradeParams: TradeParams = {
+        contract_type: params.contract_type,
+        symbol: params.symbol,
+        amount: amount,
+        duration: params.duration || 5,
+        duration_unit: params.duration_unit || "t",
+        basis: params.basis || "stake",
+        currency: params.currency || "USD",
+      }
+
+      // Add optional parameters
+      if (params.barrier) tradeParams.barrier = params.barrier.toString()
+      if (params.barrier2) tradeParams.barrier2 = params.barrier2.toString()
+      if (params.prediction !== undefined) tradeParams.prediction = params.prediction
+
+      return tradeParams
+    } catch (error) {
+      addLog(`Error extracting trade params: ${error.message}`, "error")
+      return null
+    }
+  }
+
   const handleMasterMessage = (data: any) => {
     console.log("🔍 Master message:", data)
 
@@ -203,16 +254,18 @@ const CopyTrading: React.FC = observer(() => {
         lastBalanceRef.current = data.authorize.balance
         addLog(`Master authorized: ${data.authorize.loginid} ($${data.authorize.balance})`, "success")
 
-        // Subscribe to transaction stream for REAL-TIME trade detection
+        // Subscribe to multiple streams for comprehensive trade detection
         if (masterWsRef.current) {
+          // Portfolio for contract tracking
           masterWsRef.current.send(
             JSON.stringify({
-              transaction: 1,
+              portfolio: 1,
               subscribe: 1,
               req_id: 2,
             }),
           )
 
+          // Balance for trade detection
           masterWsRef.current.send(
             JSON.stringify({
               balance: 1,
@@ -221,82 +274,128 @@ const CopyTrading: React.FC = observer(() => {
             }),
           )
 
-          addLog("Subscribed to REAL-TIME transaction stream", "success")
+          // Transaction stream for real-time detection
+          masterWsRef.current.send(
+            JSON.stringify({
+              transaction: 1,
+              subscribe: 1,
+              req_id: 4,
+            }),
+          )
+
+          addLog("Subscribed to portfolio, balance, and transaction streams", "success")
         }
         break
 
       case "balance":
         const newBalance = data.balance.balance
-        setMasterBalance(newBalance)
-        lastBalanceRef.current = newBalance
-        break
+        const balanceChange = newBalance - lastBalanceRef.current
 
-      // 🎯 REAL-TIME TRADE DETECTION - This captures trades as they happen!
-      case "transaction":
-        if (data.transaction && data.transaction.action === "buy" && isActiveRef.current) {
-          const transaction = data.transaction
-          addLog(`🚨 REAL-TIME TRADE DETECTED: ${transaction.contract_type} on ${transaction.symbol}`, "success")
+        if (Math.abs(balanceChange) > 0.01 && isActiveRef.current) {
+          setMasterBalance(newBalance)
+          lastBalanceRef.current = newBalance
 
-          // Extract EXACT trade parameters from the transaction
-          const tradeParams: TradeParams = {
-            contract_type: transaction.contract_type,
-            symbol: transaction.symbol,
-            amount: transaction.amount,
-            duration: transaction.duration,
-            duration_unit: transaction.duration_unit,
-            basis: transaction.basis || "stake",
-            currency: transaction.currency || "USD",
+          if (balanceChange < 0) {
+            addLog(`Balance decreased: $${balanceChange.toFixed(2)} - Trade detected!`, "info")
+            // Get portfolio to find the new trade
+            if (masterWsRef.current) {
+              masterWsRef.current.send(
+                JSON.stringify({
+                  portfolio: 1,
+                  req_id: 5,
+                }),
+              )
+            }
           }
-
-          // Add barriers and prediction if present
-          if (transaction.barrier) tradeParams.barrier = transaction.barrier.toString()
-          if (transaction.barrier2) tradeParams.barrier2 = transaction.barrier2.toString()
-          if (transaction.prediction !== undefined) tradeParams.prediction = transaction.prediction
-
-          addLog(`📋 EXACT TRADE PARAMS: ${JSON.stringify(tradeParams)}`, "info")
-
-          // IMMEDIATELY replicate the EXACT same trade
-          replicateExactTrade(tradeParams)
         }
         break
 
-      // Backup detection method - proposal responses
+      case "portfolio":
+        if (data.portfolio && data.portfolio.contracts && isActiveRef.current) {
+          const contracts = data.portfolio.contracts
+
+          // Find recent contracts (within last 10 seconds)
+          const recentContracts = contracts.filter((contract: any) => {
+            const contractTime = new Date(contract.date_start * 1000).getTime()
+            const now = Date.now()
+            const timeDiff = now - contractTime
+            return timeDiff < 10000 && !processedContractsRef.current.has(contract.contract_id.toString())
+          })
+
+          if (recentContracts.length > 0) {
+            const latestContract = recentContracts[0]
+            const contractId = latestContract.contract_id.toString()
+
+            processedContractsRef.current.add(contractId)
+            addLog(`Portfolio contract found: ${latestContract.contract_type} on ${latestContract.symbol}`, "info")
+
+            // Create trade params from portfolio contract
+            const tradeParams: TradeParams = {
+              contract_type: latestContract.contract_type,
+              symbol: latestContract.symbol,
+              amount: latestContract.buy_price,
+              duration: latestContract.duration || 5,
+              duration_unit: latestContract.duration_unit || "t",
+              basis: "stake",
+              currency: latestContract.currency || "USD",
+            }
+
+            // Extract barriers from shortcode if available
+            if (latestContract.shortcode) {
+              const shortcodeParts = latestContract.shortcode.split("_")
+
+              // For digit contracts, extract barrier from shortcode
+              if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(latestContract.contract_type)) {
+                const barrierPart = shortcodeParts[shortcodeParts.length - 1]
+                if (/^\d$/.test(barrierPart)) {
+                  tradeParams.barrier = barrierPart
+                }
+              }
+            }
+
+            // Add other barriers if present
+            if (latestContract.barrier) tradeParams.barrier = latestContract.barrier.toString()
+            if (latestContract.barrier2) tradeParams.barrier2 = latestContract.barrier2.toString()
+            if (latestContract.prediction !== undefined) tradeParams.prediction = latestContract.prediction
+
+            addLog(`📋 Portfolio trade params: ${JSON.stringify(tradeParams)}`, "info")
+            replicateExactTrade(tradeParams)
+          }
+        }
+        break
+
+      case "transaction":
+        if (data.transaction && data.transaction.action === "buy" && isActiveRef.current) {
+          const tradeParams = extractTradeParamsFromData(data)
+          if (tradeParams) {
+            addLog(`🚨 Transaction trade detected: ${tradeParams.contract_type} on ${tradeParams.symbol}`, "success")
+            replicateExactTrade(tradeParams)
+          }
+        }
+        break
+
       case "proposal":
         if (data.proposal && data.proposal.id && isActiveRef.current) {
-          // Store proposal details for potential replication
           const proposalId = data.proposal.id
           const echoReq = data.echo_req
 
           if (echoReq) {
-            const tradeParams: TradeParams = {
-              contract_type: echoReq.contract_type,
-              symbol: echoReq.symbol,
-              amount: echoReq.amount,
-              duration: echoReq.duration,
-              duration_unit: echoReq.duration_unit,
-              basis: echoReq.basis || "stake",
-              currency: echoReq.currency || "USD",
-              proposal_id: proposalId,
-              ask_price: data.proposal.ask_price,
+            const tradeParams = extractTradeParamsFromData({ echo_req: echoReq })
+            if (tradeParams) {
+              tradeParams.proposal_id = proposalId
+              tradeParams.ask_price = data.proposal.ask_price
+              pendingProposalsRef.current.set(proposalId, tradeParams)
+              addLog(`📝 Stored proposal: ${proposalId} for ${tradeParams.contract_type}`, "info")
             }
-
-            if (echoReq.barrier) tradeParams.barrier = echoReq.barrier.toString()
-            if (echoReq.barrier2) tradeParams.barrier2 = echoReq.barrier2.toString()
-            if (echoReq.prediction !== undefined) tradeParams.prediction = echoReq.prediction
-
-            pendingProposalsRef.current.set(proposalId, tradeParams)
-            addLog(`📝 Stored proposal: ${proposalId} for ${tradeParams.contract_type}`, "info")
           }
         }
         break
 
-      // Detect when master actually buys a proposal
       case "buy":
         if (data.buy && data.buy.contract_id && isActiveRef.current) {
-          const buyDetails = data.buy
-          addLog(`💰 Master executed trade: ${buyDetails.contract_id}`, "success")
+          addLog(`💰 Master executed trade: ${data.buy.contract_id}`, "success")
 
-          // If we have the proposal details, replicate immediately
+          // Check if we have stored proposal details
           const echoReq = data.echo_req
           if (echoReq && echoReq.buy) {
             const proposalId = echoReq.buy
@@ -457,10 +556,19 @@ const CopyTrading: React.FC = observer(() => {
     setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c)))
   }
 
-  const validateContractParams = (tradeParams: TradeParams): boolean => {
-    const { contract_type } = tradeParams
+  const validateTradeParams = (tradeParams: TradeParams): boolean => {
+    const { contract_type, symbol, amount } = tradeParams
 
-    // Validation rules based on contract type
+    // Basic validation
+    if (!contract_type || !symbol || !amount || amount <= 0) {
+      addLog(
+        `ERROR: Invalid basic parameters - contract_type: ${contract_type}, symbol: ${symbol}, amount: ${amount}`,
+        "error",
+      )
+      return false
+    }
+
+    // Contract-specific validation
     if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contract_type)) {
       if (!tradeParams.barrier) {
         addLog(`ERROR: ${contract_type} requires barrier parameter`, "error")
@@ -485,7 +593,6 @@ const CopyTrading: React.FC = observer(() => {
     return true
   }
 
-  // 🎯 NEW: EXACT TRADE REPLICATION FUNCTION
   const replicateExactTrade = (tradeParams: TradeParams) => {
     const connectedClients = clientsRef.current.filter((c) => c.status === "connected" && c.ws)
 
@@ -494,12 +601,14 @@ const CopyTrading: React.FC = observer(() => {
       return
     }
 
-    // Validate contract parameters before replication
-    if (!validateContractParams(tradeParams)) {
+    // Validate trade parameters
+    if (!validateTradeParams(tradeParams)) {
+      addLog(`❌ Trade validation failed: ${JSON.stringify(tradeParams)}`, "error")
       return
     }
 
     addLog(`🎯 EXACT REPLICATION to ${connectedClients.length} client(s)`, "success")
+    addLog(`📋 VALIDATED TRADE PARAMS: ${JSON.stringify(tradeParams)}`, "info")
 
     connectedClients.forEach((client, index) => {
       setTimeout(() => {
@@ -510,6 +619,13 @@ const CopyTrading: React.FC = observer(() => {
           // Apply min/max limits only if not exact copy
           if (!copySettings.exactCopy) {
             amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
+          }
+
+          // Ensure amount is positive and reasonable
+          amount = Math.abs(amount)
+          if (amount <= 0) {
+            addLog(`Client ${client.id} invalid amount: ${amount}`, "error")
+            return
           }
 
           // Check client balance (leave 20% buffer)
@@ -531,7 +647,7 @@ const CopyTrading: React.FC = observer(() => {
             req_id: Math.floor(Math.random() * 1000000),
           }
 
-          // Add ALL required parameters exactly as master used
+          // Add required parameters based on contract type
           if (tradeParams.barrier) {
             proposalRequest.barrier = tradeParams.barrier
             addLog(`Including barrier: ${tradeParams.barrier}`)
@@ -545,15 +661,15 @@ const CopyTrading: React.FC = observer(() => {
             addLog(`Including prediction: ${tradeParams.prediction}`)
           }
 
-          addLog(`🚀 EXACT PROPOSAL to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
-          console.log(`📤 EXACT Proposal for client ${client.id}:`, proposalRequest)
+          addLog(`🚀 SENDING PROPOSAL to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
+          console.log(`📤 Full Proposal for client ${client.id}:`, proposalRequest)
 
           client.ws?.send(JSON.stringify(proposalRequest))
         } catch (error) {
-          addLog(`Failed to replicate exact trade to client ${client.id}: ${error.message}`, "error")
-          console.error(`Exact replication error for client ${client.id}:`, error)
+          addLog(`Failed to replicate trade to client ${client.id}: ${error.message}`, "error")
+          console.error(`Replication error for client ${client.id}:`, error)
         }
-      }, index * 100) // Reduced delay for faster execution
+      }, index * 100)
     })
   }
 
@@ -587,20 +703,17 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   const clearAllData = () => {
-    // Clear localStorage
     localStorage.removeItem("copytrading_master_token")
     localStorage.removeItem("copytrading_clients")
     localStorage.removeItem("copytrading_settings")
     localStorage.removeItem("copytrading_is_demo")
 
-    // Reset state
     setMasterToken("")
     setClients([])
     setCopySettings({ copyRatio: 1, maxAmount: 100, minAmount: 1, exactCopy: true })
     setIsDemo(true)
     setIsActive(false)
 
-    // Close connections
     if (masterWs) masterWs.close()
     clients.forEach((client) => client.ws?.close())
 
@@ -610,12 +723,10 @@ const CopyTrading: React.FC = observer(() => {
   const reconnectAll = () => {
     addLog("Reconnecting all accounts...", "info")
 
-    // Reconnect master
     if (masterToken && !masterWs) {
       connectMaster()
     }
 
-    // Reconnect clients
     clients.forEach((client) => {
       if (client.status !== "connected") {
         connectClient(client)
@@ -636,9 +747,10 @@ const CopyTrading: React.FC = observer(() => {
 
     setIsActive(!isActive)
     if (!isActive) {
-      addLog("🎯 EXACT COPY TRADING STARTED - Real-time monitoring...", "success")
+      addLog("🎯 EXACT COPY TRADING STARTED - Multi-stream monitoring...", "success")
       processedContractsRef.current.clear()
       pendingProposalsRef.current.clear()
+      lastTradeTimeRef.current = Date.now()
     } else {
       addLog("COPY TRADING STOPPED", "warning")
     }
@@ -831,7 +943,7 @@ const CopyTrading: React.FC = observer(() => {
       {/* Activity Log */}
       {showLogs && (
         <div className="ct-section">
-          <h3>📋 Activity Log (Real-Time Mode)</h3>
+          <h3>📋 Activity Log (Multi-Stream Detection)</h3>
           <div className="ct-logs">
             {logs.length === 0 ? (
               <div className="ct-no-logs">No activity yet...</div>
@@ -854,32 +966,36 @@ const CopyTrading: React.FC = observer(() => {
           <p>Exact Copy Mode: {isActive ? "🎯 Active" : "❌ Inactive"}</p>
           <p>Connected Clients: {clients.filter((c) => c.status === "connected").length}</p>
           <p>Pending Proposals: {pendingProposalsRef.current.size}</p>
-          <p>Real-Time Detection: ✅ Enabled</p>
+          <p>Processed Contracts: {processedContractsRef.current.size}</p>
+          <p>Multi-Stream Detection: ✅ Enabled</p>
           <p>Data Persistence: ✅ Enabled</p>
         </div>
       </div>
 
       {/* Instructions */}
       <div className="ct-section">
-        <h3>📖 How TRUE Copy Trading Works</h3>
+        <h3>📖 Fixed Issues</h3>
         <div style={{ fontSize: "0.8rem", lineHeight: "1.4" }}>
           <p>
-            <strong>🎯 EXACT COPY MODE:</strong> Replicates trades in REAL-TIME with exact parameters!
+            <strong>✅ FIXED:</strong> contract_type undefined error
           </p>
           <p>
-            <strong>✅ Same Entry Price:</strong> Trades execute at the same time as master
+            <strong>✅ FIXED:</strong> Negative amount error
           </p>
           <p>
-            <strong>✅ Same Contract Type:</strong> Exact same trade parameters
+            <strong>✅ FIXED:</strong> Missing duration/duration_unit
           </p>
           <p>
-            <strong>✅ Same Amount:</strong> Enable "Exact Copy" for identical stake amounts
+            <strong>✅ ADDED:</strong> Multi-stream detection (portfolio + transaction + balance)
           </p>
           <p>
-            <strong>✅ Real-Time:</strong> Uses transaction stream for instant detection
+            <strong>✅ ADDED:</strong> Comprehensive parameter validation
           </p>
           <p>
-            <strong>🚀 Result:</strong> Your clients get EXACTLY the same trades as master!
+            <strong>✅ ADDED:</strong> Shortcode barrier extraction for digit contracts
+          </p>
+          <p>
+            <strong>🎯 Result:</strong> Should now copy trades exactly with all required parameters!
           </p>
         </div>
       </div>
