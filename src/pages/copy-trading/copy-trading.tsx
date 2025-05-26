@@ -4,8 +4,6 @@ import type React from "react"
 import { useState, useEffect } from "react"
 import { observer } from "mobx-react-lite"
 import { useStore } from "@/hooks/useStore"
-import { Button, Icon, Text, Input, Loading } from "@deriv/components"
-import { localize } from "@deriv/translations"
 import "./copy-trading.scss"
 
 interface TraderStats {
@@ -217,87 +215,73 @@ const CopyTrading: React.FC = observer(() => {
       {/* Header */}
       <div className="copy-trading__header">
         <div className="copy-trading__title">
-          <Icon icon="IcCopy" size={32} />
-          <Text size="xl" weight="bold">
-            {localize("Copy Trading")}
-          </Text>
+          <div className="copy-trading__icon">📋</div>
+          <h1>Copy Trading</h1>
         </div>
-        <Text size="sm" color="less-prominent">
-          {localize(
-            "Copy trades from experienced traders or allow others to copy your trades. Available for Options trading only.",
-          )}
-        </Text>
+        <p className="copy-trading__description">
+          Copy trades from experienced traders or allow others to copy your trades. Available for Options trading only.
+        </p>
       </div>
 
       {/* Alerts */}
       {error && (
         <div className="copy-trading__alert copy-trading__alert--error">
-          <Icon icon="IcAlertDanger" size={16} />
-          <Text size="xs" color="loss-danger">
-            {error}
-          </Text>
+          <span className="copy-trading__alert-icon">⚠️</span>
+          <span>{error}</span>
         </div>
       )}
 
       {success && (
         <div className="copy-trading__alert copy-trading__alert--success">
-          <Icon icon="IcCheckmarkCircle" size={16} />
-          <Text size="xs" color="profit-success">
-            {success}
-          </Text>
+          <span className="copy-trading__alert-icon">✅</span>
+          <span>{success}</span>
         </div>
       )}
 
       {/* API Token Section */}
       <div className="copy-trading__section">
         <div className="copy-trading__section-header">
-          <Icon icon="IcSettings" size={20} />
-          <Text size="sm" weight="bold">
-            {localize("API Configuration")}
-          </Text>
+          <span className="copy-trading__section-icon">⚙️</span>
+          <h2>API Configuration</h2>
         </div>
-        <Text size="xs" color="less-prominent">
-          {localize("Enter your Deriv API token to enable copy trading features")}
-        </Text>
+        <p className="copy-trading__section-description">Enter your Deriv API token to enable copy trading features</p>
 
         <div className="copy-trading__input-group">
-          <Input
-            type="password"
-            label={localize("Your API Token")}
-            placeholder={localize("Enter your read-only API token")}
-            value={apiToken}
-            onChange={(e) => setApiToken(e.target.value)}
-          />
-          <Button onClick={generateApiToken} secondary small>
-            {localize("Generate Token")}
-          </Button>
+          <div className="copy-trading__input-wrapper">
+            <label htmlFor="api-token">Your API Token</label>
+            <input
+              id="api-token"
+              type="password"
+              placeholder="Enter your read-only API token"
+              value={apiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              className="copy-trading__input"
+            />
+          </div>
+          <button onClick={generateApiToken} className="copy-trading__button copy-trading__button--secondary">
+            Generate Token
+          </button>
         </div>
-        <Text size="xxs" color="less-prominent">
-          {localize("Create a read-only API token from your Deriv account settings")}
-        </Text>
+        <p className="copy-trading__help-text">Create a read-only API token from your Deriv account settings</p>
       </div>
 
       {/* Main Tabs */}
       <div className="copy-trading__tabs">
         <div className="copy-trading__tab-buttons">
-          <Button
+          <button
             className={`copy-trading__tab-button ${activeTab === "copier" ? "active" : ""}`}
             onClick={() => setActiveTab("copier")}
-            secondary={activeTab !== "copier"}
-            small
           >
-            <Icon icon="IcEye" size={16} />
-            {localize("Be a Copier")}
-          </Button>
-          <Button
+            <span className="copy-trading__tab-icon">👁️</span>
+            Be a Copier
+          </button>
+          <button
             className={`copy-trading__tab-button ${activeTab === "trader" ? "active" : ""}`}
             onClick={() => setActiveTab("trader")}
-            secondary={activeTab !== "trader"}
-            small
           >
-            <Icon icon="IcUser" size={16} />
-            {localize("Be a Trader")}
-          </Button>
+            <span className="copy-trading__tab-icon">👤</span>
+            Be a Trader
+          </button>
         </div>
 
         {/* Copier Tab Content */}
@@ -305,115 +289,115 @@ const CopyTrading: React.FC = observer(() => {
           <div className="copy-trading__tab-content">
             <div className="copy-trading__section">
               <div className="copy-trading__section-header">
-                <Text size="sm" weight="bold">
-                  {localize("Copy a Trader")}
-                </Text>
+                <h2>Copy a Trader</h2>
               </div>
-              <Text size="xs" color="less-prominent">
-                {localize("Enter a trader's token to start copying their trades")}
-              </Text>
+              <p className="copy-trading__section-description">Enter a trader's token to start copying their trades</p>
 
               <div className="copy-trading__input-group">
-                <Input
-                  label={localize("Trader's Token")}
-                  placeholder={localize("Enter trader's read-only token")}
-                  value={traderToken}
-                  onChange={(e) => setTraderToken(e.target.value)}
-                />
-                <Button onClick={loadTraderStats} secondary small disabled={isLoading}>
-                  <Icon icon="IcEye" size={16} />
-                  {localize("Preview")}
-                </Button>
+                <div className="copy-trading__input-wrapper">
+                  <label htmlFor="trader-token">Trader's Token</label>
+                  <input
+                    id="trader-token"
+                    placeholder="Enter trader's read-only token"
+                    value={traderToken}
+                    onChange={(e) => setTraderToken(e.target.value)}
+                    className="copy-trading__input"
+                  />
+                </div>
+                <button
+                  onClick={loadTraderStats}
+                  className="copy-trading__button copy-trading__button--secondary"
+                  disabled={isLoading}
+                >
+                  <span className="copy-trading__button-icon">👁️</span>
+                  Preview
+                </button>
               </div>
 
               {traderStats && (
                 <div className="copy-trading__stats-card">
-                  <Text size="sm" weight="bold">
-                    {localize("Trader Statistics")}
-                  </Text>
+                  <h3>Trader Statistics</h3>
                   <div className="copy-trading__stats-grid">
                     <div className="copy-trading__stat">
-                      <Text size="lg" weight="bold" color="profit-success">
+                      <div className="copy-trading__stat-value copy-trading__stat-value--success">
                         {traderStats.win_rate.toFixed(1)}%
-                      </Text>
-                      <Text size="xs" color="less-prominent">
-                        {localize("Win Rate")}
-                      </Text>
+                      </div>
+                      <div className="copy-trading__stat-label">Win Rate</div>
                     </div>
                     <div className="copy-trading__stat">
-                      <Text size="lg" weight="bold">
-                        {traderStats.total_trades}
-                      </Text>
-                      <Text size="xs" color="less-prominent">
-                        {localize("Total Trades")}
-                      </Text>
+                      <div className="copy-trading__stat-value">{traderStats.total_trades}</div>
+                      <div className="copy-trading__stat-label">Total Trades</div>
                     </div>
                     <div className="copy-trading__stat">
-                      <Text
-                        size="lg"
-                        weight="bold"
-                        color={traderStats.total_profit_loss >= 0 ? "profit-success" : "loss-danger"}
+                      <div
+                        className={`copy-trading__stat-value ${
+                          traderStats.total_profit_loss >= 0
+                            ? "copy-trading__stat-value--success"
+                            : "copy-trading__stat-value--danger"
+                        }`}
                       >
                         ${traderStats.total_profit_loss.toFixed(2)}
-                      </Text>
-                      <Text size="xs" color="less-prominent">
-                        {localize("Total P&L")}
-                      </Text>
+                      </div>
+                      <div className="copy-trading__stat-label">Total P&L</div>
                     </div>
                     <div className="copy-trading__stat">
-                      <Text size="lg" weight="bold" color="blue">
+                      <div className="copy-trading__stat-value copy-trading__stat-value--info">
                         {traderStats.copiers_count}
-                      </Text>
-                      <Text size="xs" color="less-prominent">
-                        {localize("Copiers")}
-                      </Text>
+                      </div>
+                      <div className="copy-trading__stat-label">Copiers</div>
                     </div>
                   </div>
                 </div>
               )}
 
-              <Button onClick={startCopying} disabled={!traderToken || !apiToken || isLoading} primary large>
-                {isLoading ? <Loading /> : <Icon icon="IcPlay" size={16} />}
-                {localize("Start Copying")}
-              </Button>
+              <button
+                onClick={startCopying}
+                disabled={!traderToken || !apiToken || isLoading}
+                className="copy-trading__button copy-trading__button--primary copy-trading__button--large"
+              >
+                {isLoading ? (
+                  <span className="copy-trading__loading">⏳ Loading...</span>
+                ) : (
+                  <>
+                    <span className="copy-trading__button-icon">▶️</span>
+                    Start Copying
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Active Copy Sessions */}
             <div className="copy-trading__section">
               <div className="copy-trading__section-header">
-                <Text size="sm" weight="bold">
-                  {localize("Your Copy Sessions")}
-                </Text>
+                <h2>Your Copy Sessions</h2>
               </div>
-              <Text size="xs" color="less-prominent">
-                {localize("Manage your active copy trading sessions")}
-              </Text>
+              <p className="copy-trading__section-description">Manage your active copy trading sessions</p>
 
               {copyingSessions.length === 0 ? (
                 <div className="copy-trading__empty">
-                  <Icon icon="IcCopy" size={48} />
-                  <Text size="sm" color="less-prominent">
-                    {localize("No active copy sessions")}
-                  </Text>
+                  <div className="copy-trading__empty-icon">📋</div>
+                  <p>No active copy sessions</p>
                 </div>
               ) : (
                 <div className="copy-trading__sessions">
                   {copyingSessions.map((session, index) => (
                     <div key={index} className="copy-trading__session-card">
                       <div className="copy-trading__session-info">
-                        <Text size="sm" weight="bold">
-                          {localize("Trader")}: {session.trader_id}
-                        </Text>
-                        <Text size="xs" color="less-prominent">
-                          {localize("Started")}: {new Date(session.start_time * 1000).toLocaleDateString()}
-                        </Text>
+                        <h4>Trader: {session.trader_id}</h4>
+                        <p className="copy-trading__session-date">
+                          Started: {new Date(session.start_time * 1000).toLocaleDateString()}
+                        </p>
                         <div className="copy-trading__session-stats">
-                          <Text size="xs">
-                            {localize("Trades")}: {session.total_trades}
-                          </Text>
-                          <Text size="xs" color={session.total_profit_loss >= 0 ? "profit-success" : "loss-danger"}>
+                          <span>Trades: {session.total_trades}</span>
+                          <span
+                            className={
+                              session.total_profit_loss >= 0
+                                ? "copy-trading__session-profit"
+                                : "copy-trading__session-loss"
+                            }
+                          >
                             P&L: ${session.total_profit_loss.toFixed(2)}
-                          </Text>
+                          </span>
                         </div>
                       </div>
                       <div className="copy-trading__session-actions">
@@ -421,10 +405,13 @@ const CopyTrading: React.FC = observer(() => {
                           {session.status}
                         </span>
                         {session.status === "active" && (
-                          <Button size="small" secondary onClick={() => stopCopying(session.trader_token)}>
-                            <Icon icon="IcStop" size={12} />
-                            {localize("Stop")}
-                          </Button>
+                          <button
+                            className="copy-trading__button copy-trading__button--small copy-trading__button--secondary"
+                            onClick={() => stopCopying(session.trader_token)}
+                          >
+                            <span className="copy-trading__button-icon">⏹️</span>
+                            Stop
+                          </button>
                         )}
                       </div>
                     </div>
@@ -440,17 +427,14 @@ const CopyTrading: React.FC = observer(() => {
           <div className="copy-trading__tab-content">
             <div className="copy-trading__section">
               <div className="copy-trading__section-header">
-                <Text size="sm" weight="bold">
-                  {localize("Allow Others to Copy You")}
-                </Text>
+                <h2>Allow Others to Copy You</h2>
               </div>
-              <Text size="xs" color="less-prominent">
-                {localize("Enable copy trading to let others copy your trades")}
-              </Text>
+              <p className="copy-trading__section-description">Enable copy trading to let others copy your trades</p>
 
               <div className="copy-trading__toggle">
-                <Text size="sm">{localize("Allow Copiers")}</Text>
+                <label htmlFor="allow-copiers">Allow Copiers</label>
                 <input
+                  id="allow-copiers"
                   type="checkbox"
                   checked={allowCopiers}
                   onChange={(e) => setAllowCopiers(e.target.checked)}
@@ -458,36 +442,52 @@ const CopyTrading: React.FC = observer(() => {
                 />
               </div>
 
-              <Button onClick={enableCopyTrading} disabled={!apiToken || isLoading} primary large>
-                {isLoading ? <Loading /> : <Icon icon="IcSettings" size={16} />}
-                {localize("Update Settings")}
-              </Button>
+              <button
+                onClick={enableCopyTrading}
+                disabled={!apiToken || isLoading}
+                className="copy-trading__button copy-trading__button--primary copy-trading__button--large"
+              >
+                {isLoading ? (
+                  <span className="copy-trading__loading">⏳ Loading...</span>
+                ) : (
+                  <>
+                    <span className="copy-trading__button-icon">⚙️</span>
+                    Update Settings
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Share Token */}
             {allowCopiers && (
               <div className="copy-trading__section">
                 <div className="copy-trading__section-header">
-                  <Text size="sm" weight="bold">
-                    {localize("Share Your Token")}
-                  </Text>
+                  <h2>Share Your Token</h2>
                 </div>
-                <Text size="xs" color="less-prominent">
-                  {localize("Share this read-only token with potential copiers")}
-                </Text>
+                <p className="copy-trading__section-description">Share this read-only token with potential copiers</p>
 
                 <div className="copy-trading__token-share">
-                  <Input label={localize("Your Trader Token")} value={apiToken} readOnly />
-                  <Button onClick={() => navigator.clipboard.writeText(apiToken)} secondary small>
-                    <Icon icon="IcCopy" size={16} />
-                  </Button>
+                  <div className="copy-trading__input-wrapper">
+                    <label htmlFor="trader-token-share">Your Trader Token</label>
+                    <input
+                      id="trader-token-share"
+                      value={apiToken}
+                      readOnly
+                      className="copy-trading__input copy-trading__input--readonly"
+                    />
+                  </div>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(apiToken)}
+                    className="copy-trading__button copy-trading__button--secondary"
+                  >
+                    <span className="copy-trading__button-icon">📋</span>
+                    Copy
+                  </button>
                 </div>
 
                 <div className="copy-trading__warning">
-                  <Icon icon="IcInfo" size={16} />
-                  <Text size="xs" color="less-prominent">
-                    {localize("Only share read-only tokens. Never share tokens with trading permissions.")}
-                  </Text>
+                  <span className="copy-trading__warning-icon">ℹ️</span>
+                  <p>Only share read-only tokens. Never share tokens with trading permissions.</p>
                 </div>
               </div>
             )}
@@ -495,56 +495,54 @@ const CopyTrading: React.FC = observer(() => {
             {/* Trading Statistics */}
             <div className="copy-trading__section">
               <div className="copy-trading__section-header">
-                <Text size="sm" weight="bold">
-                  {localize("Your Trading Statistics")}
-                </Text>
+                <h2>Your Trading Statistics</h2>
               </div>
-              <Text size="xs" color="less-prominent">
-                {localize("View your performance stats that copiers can see")}
-              </Text>
+              <p className="copy-trading__section-description">View your performance stats that copiers can see</p>
 
-              <Button onClick={loadMyStats} disabled={!apiToken || isLoading} secondary>
-                {isLoading ? <Loading /> : <Icon icon="IcTrendUp" size={16} />}
-                {localize("Load Statistics")}
-              </Button>
+              <button
+                onClick={loadMyStats}
+                disabled={!apiToken || isLoading}
+                className="copy-trading__button copy-trading__button--secondary"
+              >
+                {isLoading ? (
+                  <span className="copy-trading__loading">⏳ Loading...</span>
+                ) : (
+                  <>
+                    <span className="copy-trading__button-icon">📈</span>
+                    Load Statistics
+                  </>
+                )}
+              </button>
 
               {myStats && (
                 <div className="copy-trading__stats-grid">
                   <div className="copy-trading__stat-card">
-                    <Text size="lg" weight="bold" color="profit-success">
+                    <div className="copy-trading__stat-value copy-trading__stat-value--success">
                       {myStats.win_rate.toFixed(1)}%
-                    </Text>
-                    <Text size="xs" color="less-prominent">
-                      {localize("Win Rate")}
-                    </Text>
+                    </div>
+                    <div className="copy-trading__stat-label">Win Rate</div>
                   </div>
                   <div className="copy-trading__stat-card">
-                    <Text size="lg" weight="bold">
-                      {myStats.total_trades}
-                    </Text>
-                    <Text size="xs" color="less-prominent">
-                      {localize("Total Trades")}
-                    </Text>
+                    <div className="copy-trading__stat-value">{myStats.total_trades}</div>
+                    <div className="copy-trading__stat-label">Total Trades</div>
                   </div>
                   <div className="copy-trading__stat-card">
-                    <Text
-                      size="lg"
-                      weight="bold"
-                      color={myStats.total_profit_loss >= 0 ? "profit-success" : "loss-danger"}
+                    <div
+                      className={`copy-trading__stat-value ${
+                        myStats.total_profit_loss >= 0
+                          ? "copy-trading__stat-value--success"
+                          : "copy-trading__stat-value--danger"
+                      }`}
                     >
                       ${myStats.total_profit_loss.toFixed(2)}
-                    </Text>
-                    <Text size="xs" color="less-prominent">
-                      {localize("Total P&L")}
-                    </Text>
+                    </div>
+                    <div className="copy-trading__stat-label">Total P&L</div>
                   </div>
                   <div className="copy-trading__stat-card">
-                    <Text size="lg" weight="bold" color="blue">
+                    <div className="copy-trading__stat-value copy-trading__stat-value--info">
                       {myStats.copiers_count}
-                    </Text>
-                    <Text size="xs" color="less-prominent">
-                      {localize("Copiers")}
-                    </Text>
+                    </div>
+                    <div className="copy-trading__stat-label">Copiers</div>
                   </div>
                 </div>
               )}
@@ -556,37 +554,15 @@ const CopyTrading: React.FC = observer(() => {
       {/* Info Section */}
       <div className="copy-trading__info">
         <div className="copy-trading__info-header">
-          <Icon icon="IcInfo" size={20} />
-          <Text size="sm" weight="bold" color="blue">
-            {localize("Important Information")}
-          </Text>
+          <span className="copy-trading__info-icon">ℹ️</span>
+          <h3>Important Information</h3>
         </div>
         <ul className="copy-trading__info-list">
-          <li>
-            <Text size="xs" color="blue">
-              • {localize("Copy trading is available only for Options trading")}
-            </Text>
-          </li>
-          <li>
-            <Text size="xs" color="blue">
-              • {localize("Always use read-only API tokens for security")}
-            </Text>
-          </li>
-          <li>
-            <Text size="xs" color="blue">
-              • {localize("Past performance doesn't guarantee future results")}
-            </Text>
-          </li>
-          <li>
-            <Text size="xs" color="blue">
-              • {localize("You can stop copying at any time")}
-            </Text>
-          </li>
-          <li>
-            <Text size="xs" color="blue">
-              • {localize("For MT5 copy trading, use MetaQuotes Signals")}
-            </Text>
-          </li>
+          <li>• Copy trading is available only for Options trading</li>
+          <li>• Always use read-only API tokens for security</li>
+          <li>• Past performance doesn't guarantee future results</li>
+          <li>• You can stop copying at any time</li>
+          <li>• For MT5 copy trading, use MetaQuotes Signals</li>
         </ul>
       </div>
     </div>
@@ -594,4 +570,3 @@ const CopyTrading: React.FC = observer(() => {
 })
 
 export default CopyTrading
-
