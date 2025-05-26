@@ -38,7 +38,7 @@ const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
 const Analysis = lazy(() => import("../analysis/analysis"))
 const FreeBots = lazy(() => import("../free-bots")) // FreeBots import
-const CopyTrading = lazy(() => import("../copy-trading")) // Add CopyTrading import
+const CopyTrading = lazy(() => import("../copy-trading/copy-trading")) // Add CopyTrading import
 
 // Declare Blockly
 declare var Blockly: any
