@@ -304,7 +304,7 @@ const CopyTrading: React.FC = observer(() => {
         ws.send(
           JSON.stringify({
             authorize: client.token,
-            req_id: `client_${client.id}_auth`,
+            req_id: Math.floor(Math.random() * 1000000),
           }),
         )
       }
@@ -359,7 +359,7 @@ const CopyTrading: React.FC = observer(() => {
             JSON.stringify({
               balance: 1,
               subscribe: 1,
-              req_id: `client_${clientId}_balance`,
+              req_id: Math.floor(Math.random() * 1000000),
             }),
           )
         }
@@ -441,7 +441,7 @@ const CopyTrading: React.FC = observer(() => {
             symbol: tradeDetails.symbol,
             duration: tradeDetails.duration,
             duration_unit: tradeDetails.duration_unit,
-            req_id: `client_${client.id}_proposal_${Date.now()}`,
+            req_id: Math.floor(Math.random() * 1000000),
           }
 
           // Add optional parameters
