@@ -15,9 +15,9 @@
     <variable id="6t:g@o`J#(D~[Ieq*@`(">Stake</variable>
     <variable id="udw`VA%FP_07dKpT^-by">Ticks:</variable>
     <variable id="BnhagQ%iAAd#ZJp3_-@I">Take_Profit</variable>
+    <variable id="}[+o8WRGW~CaG5382Ia#">loss</variable>
     <variable id="|.D9Bsf+/;4%naP~%wdb">Total_Profit</variable>
     <variable id="ybZ[]aB-tNBvQC;[yn-G">text4</variable>
-    <variable id="}[+o8WRGW~CaG5382Ia#">loss</variable>
     <variable id="Gl4WeqKmtfFIn0$b`r)G">text1</variable>
     <variable id="I3B|M/{Uyy}}.;C#el=z">Stop_Loss</variable>
     <variable id="JcE=;{erH2@iH=@9Q1YW">text5</variable>
@@ -50,7 +50,7 @@
     <variable id="|a]=Q/WOhmD8te~xE}O_">Stake Martingale</variable>
     <variable id=";A%n2q/X8c}(fcX`|Xo3">L Count</variable>
   </variables>
-  <block type="trade_definition" id="QoT_Q3cd@D/quTIEidUD" deletable="false" x="0" y="0">
+  <block type="trade_definition" id="QoT_Q3cd@D/quTIEidUD" deletable="false" x="0" y="60">
     <statement name="TRADE_OPTIONS">
       <block type="trade_definition_market" id="Mv:#2)u6QyJcLnxElIAW" deletable="false" movable="false">
         <field name="MARKET_LIST">synthetic_index</field>
@@ -98,14 +98,15 @@
           <arg name="Runs"></arg>
           <arg name="Ticks"></arg>
         </mutation>
+        <data>)*F5Ec8/znx$Mx5}bp*V</data>
         <value name="ARG0">
           <block type="math_number" id="LaCz`Ga9o?JLD*jOn[@4">
-            <field name="NUM">400</field>
+            <field name="NUM">2</field>
           </block>
         </value>
         <value name="ARG1">
           <block type="math_number" id="*A;rWCYjy;fr2f7tUqDh">
-            <field name="NUM">100</field>
+            <field name="NUM">7</field>
           </block>
         </value>
         <value name="ARG2">
@@ -178,7 +179,7 @@
       </block>
     </statement>
   </block>
-  <block type="after_purchase" id=";iQR4C+tQ2T8Z-urpL{I" x="2055" y="0">
+  <block type="after_purchase" id=";iQR4C+tQ2T8Z-urpL{I" x="2059" y="60">
     <statement name="AFTERPURCHASE_STACK">
       <block type="variables_set" id="$kwFt?mZP~qi3*Salegw">
         <field name="VAR" id="[6vQIpq(Ibqar$9a5L?s">Prediction</field>
@@ -1593,7 +1594,7 @@
       </block>
     </statement>
   </block>
-  <block type="before_purchase" id=":g{!]t90ZG|6=YP@4P`4" deletable="false" x="0" y="628">
+  <block type="before_purchase" id=":g{!]t90ZG|6=YP@4P`4" deletable="false" x="0" y="688">
     <statement name="BEFOREPURCHASE_STACK">
       <block type="text_join" id="O+l@(61mar=u8Q,0dF@m">
         <field name="VARIABLE" id="`G(|1{$Ru(jOp#wqWNIH">text</field>
@@ -1782,7 +1783,7 @@
       </block>
     </statement>
   </block>
-  <block type="procedures_defnoreturn" id=")*F5Ec8/znx$Mx5}bp*V" collapsed="true" x="0" y="1706">
+  <block type="procedures_defnoreturn" id=")*F5Ec8/znx$Mx5}bp*V" collapsed="true" x="0" y="2760">
     <mutation xmlns="http://www.w3.org/1999/xhtml">
       <arg name="Stake Initial" varid="mt3%N*;UPDXlu)90sul2"></arg>
       <arg name="Take Profit" varid="PIEWTej$9XK@#uA^@ftR"></arg>
