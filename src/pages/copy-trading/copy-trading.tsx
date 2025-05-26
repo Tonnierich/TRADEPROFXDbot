@@ -37,19 +37,16 @@ const CopyTrading: React.FC = observer(() => {
   const [masterAccount, setMasterAccount] = useState("")
   const [isDemo, setIsDemo] = useState(true)
   const [logs, setLogs] = useState<string[]>([])
+  const [showLogs, setShowLogs] = useState(false)
   const [copySettings, setCopySettings] = useState({
-    copyRatio: 1, // 1:1 ratio by default
-    maxAmount: 100, // Maximum amount per trade
-    minAmount: 1, // Minimum amount per trade
-    allowedSymbols: [] as string[], // Empty means all symbols allowed
-    stopLoss: false,
-    takeProfit: false,
+    copyRatio: 1,
+    maxAmount: 100,
+    minAmount: 1,
   })
 
   const masterWsRef = useRef<WebSocket | null>(null)
   const clientsRef = useRef<ClientConnection[]>([])
 
-  // Update refs when state changes
   useEffect(() => {
     masterWsRef.current = masterWs
   }, [masterWs])
@@ -60,10 +57,9 @@ const CopyTrading: React.FC = observer(() => {
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString()
-    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 99)]) // Keep last 100 logs
+    setLogs((prev) => [`[${timestamp}] ${message}`, ...prev.slice(0, 49)])
   }
 
-  // Connect to master account
   const connectMaster = async () => {
     if (!masterToken) {
       addLog("❌ Please enter master API token")
@@ -75,12 +71,7 @@ const CopyTrading: React.FC = observer(() => {
 
       ws.onopen = () => {
         addLog("🔗 Connected to Deriv API")
-        // Authorize master account
-        ws.send(
-          JSON.stringify({
-            authorize: masterToken,
-          }),
-        )
+        ws.send(JSON.stringify({ authorize: masterToken }))
       }
 
       ws.onmessage = (event) => {
@@ -88,9 +79,8 @@ const CopyTrading: React.FC = observer(() => {
         handleMasterMessage(data)
       }
 
-      ws.onerror = (error) => {
+      ws.onerror = () => {
         addLog("❌ Master connection error")
-        console.error("Master WebSocket error:", error)
       }
 
       ws.onclose = () => {
@@ -101,11 +91,9 @@ const CopyTrading: React.FC = observer(() => {
       setMasterWs(ws)
     } catch (error) {
       addLog("❌ Failed to connect master account")
-      console.error("Master connection error:", error)
     }
   }
 
-  // Handle master account messages
   const handleMasterMessage = (data: any) => {
     if (data.error) {
       addLog(`❌ Master error: ${data.error.message}`)
@@ -118,22 +106,9 @@ const CopyTrading: React.FC = observer(() => {
         setMasterBalance(data.authorize.balance)
         addLog(`✅ Master authorized: ${data.authorize.loginid}`)
 
-        // Subscribe to balance updates
         if (masterWsRef.current) {
-          masterWsRef.current.send(
-            JSON.stringify({
-              balance: 1,
-              subscribe: 1,
-            }),
-          )
-
-          // Subscribe to transaction stream to catch new trades
-          masterWsRef.current.send(
-            JSON.stringify({
-              transaction: 1,
-              subscribe: 1,
-            }),
-          )
+          masterWsRef.current.send(JSON.stringify({ balance: 1, subscribe: 1 }))
+          masterWsRef.current.send(JSON.stringify({ transaction: 1, subscribe: 1 }))
         }
         break
 
@@ -142,7 +117,6 @@ const CopyTrading: React.FC = observer(() => {
         break
 
       case "transaction":
-        // This fires when master makes a trade
         if (data.transaction.action === "buy" && isActive) {
           addLog(`📈 Master trade detected: ${data.transaction.contract_type}`)
           replicateTradeToClients(data.transaction)
@@ -150,7 +124,6 @@ const CopyTrading: React.FC = observer(() => {
         break
 
       case "buy":
-        // Master trade executed
         if (isActive) {
           addLog(`🎯 Master trade executed: ${data.buy.contract_id}`)
           const tradeSignal: TradeSignal = {
@@ -168,7 +141,6 @@ const CopyTrading: React.FC = observer(() => {
     }
   }
 
-  // Add client connection
   const addClient = async () => {
     if (!clientToken.trim()) {
       addLog("❌ Please enter client token")
@@ -195,23 +167,16 @@ const CopyTrading: React.FC = observer(() => {
 
     setClients((prev) => [...prev, newClient])
     setClientToken("")
-
-    // Connect client
     connectClient(newClient)
   }
 
-  // Connect individual client
   const connectClient = async (client: ClientConnection) => {
     try {
       const ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089")
 
       ws.onopen = () => {
         addLog(`🔗 Connecting client: ${client.id}`)
-        ws.send(
-          JSON.stringify({
-            authorize: client.token,
-          }),
-        )
+        ws.send(JSON.stringify({ authorize: client.token }))
       }
 
       ws.onmessage = (event) => {
@@ -219,7 +184,7 @@ const CopyTrading: React.FC = observer(() => {
         handleClientMessage(client.id, data)
       }
 
-      ws.onerror = (error) => {
+      ws.onerror = () => {
         addLog(`❌ Client ${client.id} connection error`)
         updateClientStatus(client.id, "error")
       }
@@ -229,7 +194,6 @@ const CopyTrading: React.FC = observer(() => {
         updateClientStatus(client.id, "disconnected")
       }
 
-      // Update client with WebSocket
       setClients((prev) => prev.map((c) => (c.id === client.id ? { ...c, ws } : c)))
     } catch (error) {
       addLog(`❌ Failed to connect client ${client.id}`)
@@ -237,7 +201,6 @@ const CopyTrading: React.FC = observer(() => {
     }
   }
 
-  // Handle client messages
   const handleClientMessage = (clientId: string, data: any) => {
     if (data.error) {
       addLog(`❌ Client ${clientId} error: ${data.error.message}`)
@@ -256,13 +219,10 @@ const CopyTrading: React.FC = observer(() => {
         break
 
       case "balance":
-        updateClient(clientId, {
-          balance: data.balance.balance,
-        })
+        updateClient(clientId, { balance: data.balance.balance })
         break
 
       case "buy":
-        // Client trade executed
         updateClient(clientId, {
           lastTrade: data.buy,
           totalCopiedTrades: (clients.find((c) => c.id === clientId)?.totalCopiedTrades || 0) + 1,
@@ -272,17 +232,14 @@ const CopyTrading: React.FC = observer(() => {
     }
   }
 
-  // Update client status
   const updateClientStatus = (clientId: string, status: ClientConnection["status"]) => {
     setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, status } : c)))
   }
 
-  // Update client data
   const updateClient = (clientId: string, updates: Partial<ClientConnection>) => {
     setClients((prev) => prev.map((c) => (c.id === clientId ? { ...c, ...updates } : c)))
   }
 
-  // Replicate trade to all connected clients
   const replicateTradeToClients = (tradeSignal: TradeSignal) => {
     const connectedClients = clientsRef.current.filter((c) => c.status === "connected" && c.ws)
 
@@ -295,25 +252,14 @@ const CopyTrading: React.FC = observer(() => {
 
     connectedClients.forEach((client) => {
       try {
-        // Calculate amount based on copy ratio and client balance
         let amount = tradeSignal.amount * copySettings.copyRatio
-
-        // Apply min/max limits
         amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
 
-        // Check if client has sufficient balance
         if (amount > client.balance) {
           addLog(`⚠️ Client ${client.id} insufficient balance for trade`)
           return
         }
 
-        // Check if symbol is allowed
-        if (copySettings.allowedSymbols.length > 0 && !copySettings.allowedSymbols.includes(tradeSignal.symbol)) {
-          addLog(`⚠️ Symbol ${tradeSignal.symbol} not allowed for copying`)
-          return
-        }
-
-        // Send trade to client
         const tradeRequest = {
           buy: 1,
           price: amount,
@@ -331,12 +277,10 @@ const CopyTrading: React.FC = observer(() => {
         addLog(`📈 Trade sent to client ${client.id}`)
       } catch (error) {
         addLog(`❌ Failed to replicate trade to client ${client.id}`)
-        console.error("Trade replication error:", error)
       }
     })
   }
 
-  // Remove client
   const removeClient = (clientId: string) => {
     const client = clients.find((c) => c.id === clientId)
     if (client?.ws) {
@@ -346,7 +290,6 @@ const CopyTrading: React.FC = observer(() => {
     addLog(`🗑️ Client ${clientId} removed`)
   }
 
-  // Start/Stop copy trading
   const toggleCopyTrading = () => {
     if (!masterWs) {
       addLog("❌ Master account not connected")
@@ -362,7 +305,6 @@ const CopyTrading: React.FC = observer(() => {
     addLog(isActive ? "⏹️ Copy trading stopped" : "▶️ Copy trading started")
   }
 
-  // Sync all clients
   const syncClients = () => {
     addLog("🔄 Syncing all clients...")
     clients.forEach((client) => {
@@ -372,7 +314,6 @@ const CopyTrading: React.FC = observer(() => {
     })
   }
 
-  // Disconnect all
   const disconnectAll = () => {
     if (masterWs) {
       masterWs.close()
@@ -387,198 +328,171 @@ const CopyTrading: React.FC = observer(() => {
   }
 
   return (
-    <div className="copy-trading">
-      {/* Header Controls */}
-      <div className="copy-trading__header">
-        <div className="copy-trading__mode-toggle">
-          <button className={`copy-trading__mode-btn ${isDemo ? "active" : ""}`} onClick={() => setIsDemo(true)}>
-            📊 Demo Trading
+    <div className="copy-trading-compact">
+      {/* Header */}
+      <div className="ct-header">
+        <div className="ct-mode-toggle">
+          <button className={`ct-mode-btn ${isDemo ? "active" : ""}`} onClick={() => setIsDemo(true)}>
+            📊 Demo
           </button>
-          <button className={`copy-trading__mode-btn ${!isDemo ? "active" : ""}`} onClick={() => setIsDemo(false)}>
-            💰 Real Trading
+          <button className={`ct-mode-btn ${!isDemo ? "active" : ""}`} onClick={() => setIsDemo(false)}>
+            💰 Real
           </button>
         </div>
-
-        <div className="copy-trading__status">
-          <span className={`copy-trading__status-indicator ${isActive ? "active" : "inactive"}`}>
-            {isActive ? "🟢 ACTIVE" : "🔴 INACTIVE"}
-          </span>
-        </div>
+        <div className={`ct-status ${isActive ? "active" : "inactive"}`}>{isActive ? "🟢 ACTIVE" : "🔴 INACTIVE"}</div>
       </div>
 
-      {/* Master Account Setup */}
-      <div className="copy-trading__master-section">
-        <h3>🎯 Master Account (Signal Provider)</h3>
-        <div className="copy-trading__master-setup">
+      {/* Master Account */}
+      <div className="ct-section">
+        <h3>🎯 Master Account</h3>
+        <div className="ct-input-row">
           <input
             type="password"
-            placeholder="Enter Master API Token"
+            placeholder="Master API Token"
             value={masterToken}
             onChange={(e) => setMasterToken(e.target.value)}
-            className="copy-trading__token-input"
+            className="ct-input"
           />
-          <button onClick={connectMaster} className="copy-trading__connect-btn" disabled={!masterToken || !!masterWs}>
+          <button onClick={connectMaster} className="ct-btn ct-btn-primary" disabled={!masterToken || !!masterWs}>
             {masterWs ? "✅ Connected" : "🔗 Connect"}
           </button>
         </div>
-
         {masterWs && (
-          <div className="copy-trading__master-info">
-            <div className="copy-trading__account-card">
-              <div className="copy-trading__account-id">📋 {masterAccount}</div>
-              <div className="copy-trading__balance">💰 ${masterBalance.toFixed(2)}</div>
-            </div>
+          <div className="ct-account-info">
+            <span>📋 {masterAccount}</span>
+            <span>💰 ${masterBalance.toFixed(2)}</span>
           </div>
         )}
       </div>
 
       {/* Copy Settings */}
-      <div className="copy-trading__settings">
+      <div className="ct-section">
         <h3>⚙️ Copy Settings</h3>
-        <div className="copy-trading__settings-grid">
-          <div className="copy-trading__setting">
-            <label>Copy Ratio</label>
+        <div className="ct-settings-row">
+          <div className="ct-setting">
+            <label>Ratio</label>
             <input
               type="number"
               min="0.1"
               max="10"
               step="0.1"
               value={copySettings.copyRatio}
-              onChange={(e) =>
-                setCopySettings((prev) => ({
-                  ...prev,
-                  copyRatio: Number.parseFloat(e.target.value),
-                }))
-              }
+              onChange={(e) => setCopySettings((prev) => ({ ...prev, copyRatio: Number.parseFloat(e.target.value) }))}
+              className="ct-input-small"
             />
           </div>
-          <div className="copy-trading__setting">
-            <label>Max Amount ($)</label>
+          <div className="ct-setting">
+            <label>Max $</label>
             <input
               type="number"
               min="1"
               value={copySettings.maxAmount}
-              onChange={(e) =>
-                setCopySettings((prev) => ({
-                  ...prev,
-                  maxAmount: Number.parseFloat(e.target.value),
-                }))
-              }
+              onChange={(e) => setCopySettings((prev) => ({ ...prev, maxAmount: Number.parseFloat(e.target.value) }))}
+              className="ct-input-small"
             />
           </div>
-          <div className="copy-trading__setting">
-            <label>Min Amount ($)</label>
+          <div className="ct-setting">
+            <label>Min $</label>
             <input
               type="number"
               min="0.1"
               step="0.1"
               value={copySettings.minAmount}
-              onChange={(e) =>
-                setCopySettings((prev) => ({
-                  ...prev,
-                  minAmount: Number.parseFloat(e.target.value),
-                }))
-              }
+              onChange={(e) => setCopySettings((prev) => ({ ...prev, minAmount: Number.parseFloat(e.target.value) }))}
+              className="ct-input-small"
             />
           </div>
         </div>
       </div>
 
       {/* Client Management */}
-      <div className="copy-trading__clients-section">
-        <h3>👥 Client Accounts (Signal Receivers)</h3>
-
-        <div className="copy-trading__add-client">
+      <div className="ct-section">
+        <h3>
+          👥 Clients ({clients.filter((c) => c.status === "connected").length}/{clients.length})
+        </h3>
+        <div className="ct-input-row">
           <input
             type="password"
-            placeholder="Enter Client API Token"
+            placeholder="Client API Token"
             value={clientToken}
             onChange={(e) => setClientToken(e.target.value)}
-            className="copy-trading__token-input"
+            className="ct-input"
             onKeyPress={(e) => e.key === "Enter" && addClient()}
           />
-          <button onClick={addClient} className="copy-trading__add-btn">
-            ➕ Add Client
+          <button onClick={addClient} className="ct-btn ct-btn-secondary">
+            ➕ Add
           </button>
-          <button onClick={syncClients} className="copy-trading__sync-btn">
-            🔄 Sync All
+          <button onClick={syncClients} className="ct-btn ct-btn-secondary">
+            🔄 Sync
           </button>
         </div>
 
-        <div className="copy-trading__clients-list">
-          <div className="copy-trading__clients-header">
-            <h4>
-              Connected Clients: {clients.filter((c) => c.status === "connected").length}/{clients.length}
-            </h4>
-          </div>
-
-          {clients.length === 0 ? (
-            <div className="copy-trading__no-clients">
-              No clients added yet. Add client API tokens to start copy trading.
-            </div>
-          ) : (
-            clients.map((client) => (
-              <div key={client.id} className="copy-trading__client-card">
-                <div className="copy-trading__client-info">
-                  <div className="copy-trading__client-header">
-                    <span className="copy-trading__client-id">{client.accountInfo?.loginid || client.id}</span>
-                    <span className={`copy-trading__client-status copy-trading__client-status--${client.status}`}>
-                      {client.status}
-                    </span>
-                  </div>
-                  <div className="copy-trading__client-details">
-                    <span>💰 Balance: ${client.balance.toFixed(2)}</span>
-                    <span>📈 Trades: {client.totalCopiedTrades}</span>
-                    <span>💵 P&L: ${client.totalProfit.toFixed(2)}</span>
-                  </div>
+        {clients.length > 0 && (
+          <div className="ct-clients-list">
+            {clients.map((client) => (
+              <div key={client.id} className="ct-client-item">
+                <div className="ct-client-info">
+                  <span className="ct-client-id">{client.accountInfo?.loginid || client.id.slice(-6)}</span>
+                  <span className={`ct-client-status ct-status-${client.status}`}>
+                    {client.status === "connected" ? "✅" : client.status === "connecting" ? "🔄" : "❌"}
+                  </span>
                 </div>
-                <button onClick={() => removeClient(client.id)} className="copy-trading__remove-btn">
+                <div className="ct-client-details">
+                  <span>${client.balance.toFixed(2)}</span>
+                  <span>{client.totalCopiedTrades} trades</span>
+                </div>
+                <button onClick={() => removeClient(client.id)} className="ct-btn-remove">
                   🗑️
                 </button>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Control Panel */}
-      <div className="copy-trading__controls">
+      {/* Controls */}
+      <div className="ct-controls">
         <button
           onClick={toggleCopyTrading}
-          className={`copy-trading__main-btn ${isActive ? "stop" : "start"}`}
+          className={`ct-main-btn ${isActive ? "stop" : "start"}`}
           disabled={!masterWs || clients.filter((c) => c.status === "connected").length === 0}
         >
           {isActive ? "⏹️ Stop Copy Trading" : "▶️ Start Copy Trading"}
         </button>
-
-        <button onClick={disconnectAll} className="copy-trading__disconnect-btn">
-          🔌 Disconnect All
+        <button onClick={() => setShowLogs(!showLogs)} className="ct-btn ct-btn-secondary">
+          📋 {showLogs ? "Hide" : "Show"} Logs
+        </button>
+        <button onClick={disconnectAll} className="ct-btn ct-btn-danger">
+          🔌 Disconnect
         </button>
       </div>
 
-      {/* Activity Log */}
-      <div className="copy-trading__logs">
-        <h3>📋 Activity Log</h3>
-        <div className="copy-trading__logs-container">
-          {logs.length === 0 ? (
-            <div className="copy-trading__no-logs">No activity yet...</div>
-          ) : (
-            logs.map((log, index) => (
-              <div key={index} className="copy-trading__log-entry">
-                {log}
-              </div>
-            ))
-          )}
+      {/* Activity Log (Collapsible) */}
+      {showLogs && (
+        <div className="ct-section">
+          <h3>📋 Activity Log</h3>
+          <div className="ct-logs">
+            {logs.length === 0 ? (
+              <div className="ct-no-logs">No activity yet...</div>
+            ) : (
+              logs.slice(0, 10).map((log, index) => (
+                <div key={index} className="ct-log-entry">
+                  {log}
+                </div>
+              ))
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Risk Warning */}
-      <div className="copy-trading__warning">
-        ⚠️ <strong>Risk Warning:</strong> Copy trading involves significant risk. Past performance does not guarantee
-        future results. Only trade with money you can afford to lose.
+      <div className="ct-warning">
+        ⚠️ <strong>Risk Warning:</strong> Copy trading involves significant risk. Only trade with money you can afford to
+        lose.
       </div>
     </div>
   )
 })
 
 export default CopyTrading
+
