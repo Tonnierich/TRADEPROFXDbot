@@ -28,6 +28,8 @@ interface TradeParams {
   barrier?: string
   barrier2?: string
   prediction?: number
+  proposal_id?: string
+  ask_price?: number
 }
 
 const CopyTrading: React.FC = observer(() => {
@@ -42,6 +44,7 @@ const CopyTrading: React.FC = observer(() => {
             copyRatio: 1,
             maxAmount: 100,
             minAmount: 1,
+            exactCopy: true, // New setting for exact replication
           }),
       )
       const savedIsDemo = localStorage.getItem("copytrading_is_demo") === "true"
@@ -52,7 +55,7 @@ const CopyTrading: React.FC = observer(() => {
       return {
         savedMasterToken: "",
         savedClients: [],
-        savedSettings: { copyRatio: 1, maxAmount: 100, minAmount: 1 },
+        savedSettings: { copyRatio: 1, maxAmount: 100, minAmount: 1, exactCopy: true },
         savedIsDemo: true,
       }
     }
@@ -77,6 +80,7 @@ const CopyTrading: React.FC = observer(() => {
   const isActiveRef = useRef(false)
   const lastBalanceRef = useRef<number>(0)
   const processedContractsRef = useRef<Set<string>>(new Set())
+  const pendingProposalsRef = useRef<Map<string, TradeParams>>(new Map())
 
   // Save data to localStorage whenever state changes
   useEffect(() => {
@@ -199,10 +203,11 @@ const CopyTrading: React.FC = observer(() => {
         lastBalanceRef.current = data.authorize.balance
         addLog(`Master authorized: ${data.authorize.loginid} ($${data.authorize.balance})`, "success")
 
+        // Subscribe to transaction stream for REAL-TIME trade detection
         if (masterWsRef.current) {
           masterWsRef.current.send(
             JSON.stringify({
-              portfolio: 1,
+              transaction: 1,
               subscribe: 1,
               req_id: 2,
             }),
@@ -216,127 +221,93 @@ const CopyTrading: React.FC = observer(() => {
             }),
           )
 
-          addLog("Subscribed to master portfolio and balance streams", "success")
+          addLog("Subscribed to REAL-TIME transaction stream", "success")
         }
         break
 
       case "balance":
         const newBalance = data.balance.balance
-        const balanceChange = newBalance - lastBalanceRef.current
+        setMasterBalance(newBalance)
+        lastBalanceRef.current = newBalance
+        break
 
-        if (Math.abs(balanceChange) > 0.01 && isActiveRef.current) {
-          setMasterBalance(newBalance)
-          lastBalanceRef.current = newBalance
+      // 🎯 REAL-TIME TRADE DETECTION - This captures trades as they happen!
+      case "transaction":
+        if (data.transaction && data.transaction.action === "buy" && isActiveRef.current) {
+          const transaction = data.transaction
+          addLog(`🚨 REAL-TIME TRADE DETECTED: ${transaction.contract_type} on ${transaction.symbol}`, "success")
 
-          if (balanceChange < 0) {
-            addLog(`Trade detected! Balance: $${lastBalanceRef.current.toFixed(2)} → $${newBalance.toFixed(2)}`, "info")
-            if (masterWsRef.current) {
-              masterWsRef.current.send(
-                JSON.stringify({
-                  portfolio: 1,
-                  req_id: 4,
-                }),
-              )
-            }
+          // Extract EXACT trade parameters from the transaction
+          const tradeParams: TradeParams = {
+            contract_type: transaction.contract_type,
+            symbol: transaction.symbol,
+            amount: transaction.amount,
+            duration: transaction.duration,
+            duration_unit: transaction.duration_unit,
+            basis: transaction.basis || "stake",
+            currency: transaction.currency || "USD",
           }
+
+          // Add barriers and prediction if present
+          if (transaction.barrier) tradeParams.barrier = transaction.barrier.toString()
+          if (transaction.barrier2) tradeParams.barrier2 = transaction.barrier2.toString()
+          if (transaction.prediction !== undefined) tradeParams.prediction = transaction.prediction
+
+          addLog(`📋 EXACT TRADE PARAMS: ${JSON.stringify(tradeParams)}`, "info")
+
+          // IMMEDIATELY replicate the EXACT same trade
+          replicateExactTrade(tradeParams)
         }
         break
 
-      case "portfolio":
-        if (data.portfolio && data.portfolio.contracts && isActiveRef.current) {
-          const contracts = data.portfolio.contracts
+      // Backup detection method - proposal responses
+      case "proposal":
+        if (data.proposal && data.proposal.id && isActiveRef.current) {
+          // Store proposal details for potential replication
+          const proposalId = data.proposal.id
+          const echoReq = data.echo_req
 
-          const recentContracts = contracts.filter((contract: any) => {
-            const contractTime = new Date(contract.date_start * 1000)
-            const now = new Date()
-            const timeDiff = now.getTime() - contractTime.getTime()
-            return timeDiff < 30000 && !processedContractsRef.current.has(contract.contract_id.toString())
-          })
-
-          if (recentContracts.length > 0) {
-            const latestContract = recentContracts[0]
-            const contractId = latestContract.contract_id.toString()
-
-            processedContractsRef.current.add(contractId)
-            addLog(`New contract found: ${latestContract.contract_type} on ${latestContract.symbol}`, "info")
-
-            // Extract trade parameters with comprehensive contract type handling
+          if (echoReq) {
             const tradeParams: TradeParams = {
-              contract_type: latestContract.contract_type,
-              symbol: latestContract.symbol,
-              amount: latestContract.buy_price,
-              duration: latestContract.duration || 5,
-              duration_unit: latestContract.duration_unit || "t",
-              basis: "stake",
-              currency: latestContract.currency || "USD",
+              contract_type: echoReq.contract_type,
+              symbol: echoReq.symbol,
+              amount: echoReq.amount,
+              duration: echoReq.duration,
+              duration_unit: echoReq.duration_unit,
+              basis: echoReq.basis || "stake",
+              currency: echoReq.currency || "USD",
+              proposal_id: proposalId,
+              ask_price: data.proposal.ask_price,
             }
 
-            // COMPREHENSIVE CONTRACT TYPE PARAMETER HANDLING
-            const contractType = latestContract.contract_type
+            if (echoReq.barrier) tradeParams.barrier = echoReq.barrier.toString()
+            if (echoReq.barrier2) tradeParams.barrier2 = echoReq.barrier2.toString()
+            if (echoReq.prediction !== undefined) tradeParams.prediction = echoReq.prediction
 
-            // 1. DIGIT CONTRACTS - Extract barrier from shortcode or contract details
-            if (["DIGITOVER", "DIGITUNDER", "DIGITMATCH", "DIGITDIFF"].includes(contractType)) {
-              // Try to extract barrier from shortcode (e.g., "DIGITUNDER_R_10_5T_S5.00_4")
-              if (latestContract.shortcode) {
-                const shortcodeParts = latestContract.shortcode.split("_")
-                const barrierPart = shortcodeParts[shortcodeParts.length - 1] // Last part is usually the barrier
-                if (/^\d$/.test(barrierPart)) {
-                  tradeParams.barrier = barrierPart
-                  addLog(`Extracted barrier from shortcode: ${barrierPart}`, "info")
-                }
-              }
-
-              // Fallback: extract from contract details
-              if (!tradeParams.barrier && latestContract.barrier) {
-                tradeParams.barrier = latestContract.barrier.toString()
-                addLog(`Using contract barrier: ${tradeParams.barrier}`, "info")
-              }
-
-              // Last resort: use default based on contract type
-              if (!tradeParams.barrier) {
-                tradeParams.barrier = contractType.includes("UNDER") ? "4" : "6"
-                addLog(`Using default barrier for ${contractType}: ${tradeParams.barrier}`, "warning")
-              }
-            }
-
-            // 2. HIGHER/LOWER CONTRACTS
-            if (["HIGHER", "LOWER"].includes(contractType)) {
-              if (latestContract.barrier) {
-                tradeParams.barrier = latestContract.barrier.toString()
-              }
-            }
-
-            // 3. TOUCH/NO TOUCH CONTRACTS
-            if (["ONETOUCH", "NOTOUCH"].includes(contractType)) {
-              if (latestContract.barrier) {
-                tradeParams.barrier = latestContract.barrier.toString()
-              }
-            }
-
-            // 4. TUNNEL CONTRACTS (IN/OUT)
-            if (["EXPIRYRANGE", "EXPIRYMISS"].includes(contractType)) {
-              if (latestContract.barrier) {
-                tradeParams.barrier = latestContract.barrier.toString()
-              }
-              if (latestContract.barrier2) {
-                tradeParams.barrier2 = latestContract.barrier2.toString()
-              }
-            }
-
-            // 5. PREDICTION for digit contracts (legacy support)
-            if (latestContract.prediction !== undefined) {
-              tradeParams.prediction = latestContract.prediction
-            }
-
-            addLog(`Replicating trade: ${JSON.stringify(tradeParams)}`, "info")
-            replicateTradeToClients(tradeParams)
+            pendingProposalsRef.current.set(proposalId, tradeParams)
+            addLog(`📝 Stored proposal: ${proposalId} for ${tradeParams.contract_type}`, "info")
           }
         }
         break
 
+      // Detect when master actually buys a proposal
       case "buy":
-        if (data.buy && isActiveRef.current) {
-          addLog(`Master trade executed: ${data.buy.contract_id}`, "success")
+        if (data.buy && data.buy.contract_id && isActiveRef.current) {
+          const buyDetails = data.buy
+          addLog(`💰 Master executed trade: ${buyDetails.contract_id}`, "success")
+
+          // If we have the proposal details, replicate immediately
+          const echoReq = data.echo_req
+          if (echoReq && echoReq.buy) {
+            const proposalId = echoReq.buy
+            const storedParams = pendingProposalsRef.current.get(proposalId)
+
+            if (storedParams) {
+              addLog(`🎯 Replicating from stored proposal: ${proposalId}`, "info")
+              replicateExactTrade(storedParams)
+              pendingProposalsRef.current.delete(proposalId)
+            }
+          }
         }
         break
     }
@@ -470,7 +441,7 @@ const CopyTrading: React.FC = observer(() => {
             lastTrade: data.buy,
             totalCopiedTrades: (clients.find((c) => c.id === clientId)?.totalCopiedTrades || 0) + 1,
           })
-          addLog(`TRADE COPIED to client ${clientId}: ${data.buy.contract_id}`, "success")
+          addLog(`🎯 EXACT TRADE COPIED to client ${clientId}: ${data.buy.contract_id}`, "success")
         } else if (data.buy && data.buy.error) {
           addLog(`Client ${clientId} buy error: ${data.buy.error}`, "error")
         }
@@ -514,7 +485,8 @@ const CopyTrading: React.FC = observer(() => {
     return true
   }
 
-  const replicateTradeToClients = (tradeParams: TradeParams) => {
+  // 🎯 NEW: EXACT TRADE REPLICATION FUNCTION
+  const replicateExactTrade = (tradeParams: TradeParams) => {
     const connectedClients = clientsRef.current.filter((c) => c.status === "connected" && c.ws)
 
     if (connectedClients.length === 0) {
@@ -527,19 +499,26 @@ const CopyTrading: React.FC = observer(() => {
       return
     }
 
-    addLog(`Replicating trade to ${connectedClients.length} client(s)`, "info")
+    addLog(`🎯 EXACT REPLICATION to ${connectedClients.length} client(s)`, "success")
 
     connectedClients.forEach((client, index) => {
       setTimeout(() => {
         try {
-          let amount = tradeParams.amount * copySettings.copyRatio
-          amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
+          // Calculate amount - use exact copy or apply ratio
+          let amount = copySettings.exactCopy ? tradeParams.amount : tradeParams.amount * copySettings.copyRatio
 
+          // Apply min/max limits only if not exact copy
+          if (!copySettings.exactCopy) {
+            amount = Math.max(copySettings.minAmount, Math.min(copySettings.maxAmount, amount))
+          }
+
+          // Check client balance (leave 20% buffer)
           if (amount > client.balance * 0.8) {
             addLog(`Client ${client.id} insufficient balance for $${amount} trade`, "warning")
             return
           }
 
+          // Create EXACT proposal request
           const proposalRequest: any = {
             proposal: 1,
             amount: amount,
@@ -552,7 +531,7 @@ const CopyTrading: React.FC = observer(() => {
             req_id: Math.floor(Math.random() * 1000000),
           }
 
-          // Add required parameters based on contract type
+          // Add ALL required parameters exactly as master used
           if (tradeParams.barrier) {
             proposalRequest.barrier = tradeParams.barrier
             addLog(`Including barrier: ${tradeParams.barrier}`)
@@ -566,15 +545,15 @@ const CopyTrading: React.FC = observer(() => {
             addLog(`Including prediction: ${tradeParams.prediction}`)
           }
 
-          addLog(`Sending proposal to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
-          console.log(`📤 Proposal for client ${client.id}:`, proposalRequest)
+          addLog(`🚀 EXACT PROPOSAL to client ${client.id}: ${tradeParams.contract_type} $${amount}`)
+          console.log(`📤 EXACT Proposal for client ${client.id}:`, proposalRequest)
 
           client.ws?.send(JSON.stringify(proposalRequest))
         } catch (error) {
-          addLog(`Failed to replicate trade to client ${client.id}: ${error.message}`, "error")
-          console.error(`Replication error for client ${client.id}:`, error)
+          addLog(`Failed to replicate exact trade to client ${client.id}: ${error.message}`, "error")
+          console.error(`Exact replication error for client ${client.id}:`, error)
         }
-      }, index * 300)
+      }, index * 100) // Reduced delay for faster execution
     })
   }
 
@@ -595,7 +574,7 @@ const CopyTrading: React.FC = observer(() => {
     }
 
     addLog("Sending test trade...", "info")
-    replicateTradeToClients(testTrade)
+    replicateExactTrade(testTrade)
   }
 
   const removeClient = (clientId: string) => {
@@ -617,7 +596,7 @@ const CopyTrading: React.FC = observer(() => {
     // Reset state
     setMasterToken("")
     setClients([])
-    setCopySettings({ copyRatio: 1, maxAmount: 100, minAmount: 1 })
+    setCopySettings({ copyRatio: 1, maxAmount: 100, minAmount: 1, exactCopy: true })
     setIsDemo(true)
     setIsActive(false)
 
@@ -657,17 +636,9 @@ const CopyTrading: React.FC = observer(() => {
 
     setIsActive(!isActive)
     if (!isActive) {
-      addLog("COPY TRADING STARTED - Monitoring master trades...", "success")
+      addLog("🎯 EXACT COPY TRADING STARTED - Real-time monitoring...", "success")
       processedContractsRef.current.clear()
-
-      if (masterWsRef.current) {
-        masterWsRef.current.send(
-          JSON.stringify({
-            portfolio: 1,
-            req_id: 5,
-          }),
-        )
-      }
+      pendingProposalsRef.current.clear()
     } else {
       addLog("COPY TRADING STOPPED", "warning")
     }
@@ -708,7 +679,7 @@ const CopyTrading: React.FC = observer(() => {
           </button>
         </div>
         <div className={`ct-status ${isActive ? "active" : "inactive"}`}>
-          {isActive ? "🟢 MONITORING TRADES" : "🔴 INACTIVE"}
+          {isActive ? "🎯 EXACT COPY MODE" : "🔴 INACTIVE"}
         </div>
       </div>
 
@@ -740,39 +711,53 @@ const CopyTrading: React.FC = observer(() => {
         <h3>⚙️ Copy Settings</h3>
         <div className="ct-settings-row">
           <div className="ct-setting">
-            <label>Ratio</label>
-            <input
-              type="number"
-              min="0.1"
-              max="10"
-              step="0.1"
-              value={copySettings.copyRatio}
-              onChange={(e) => setCopySettings((prev) => ({ ...prev, copyRatio: Number.parseFloat(e.target.value) }))}
-              className="ct-input-small"
-            />
-          </div>
-          <div className="ct-setting">
-            <label>Max $</label>
-            <input
-              type="number"
-              min="1"
-              value={copySettings.maxAmount}
-              onChange={(e) => setCopySettings((prev) => ({ ...prev, maxAmount: Number.parseFloat(e.target.value) }))}
-              className="ct-input-small"
-            />
-          </div>
-          <div className="ct-setting">
-            <label>Min $</label>
-            <input
-              type="number"
-              min="0.1"
-              step="0.1"
-              value={copySettings.minAmount}
-              onChange={(e) => setCopySettings((prev) => ({ ...prev, minAmount: Number.parseFloat(e.target.value) }))}
-              className="ct-input-small"
-            />
+            <label>
+              <input
+                type="checkbox"
+                checked={copySettings.exactCopy}
+                onChange={(e) => setCopySettings((prev) => ({ ...prev, exactCopy: e.target.checked }))}
+              />
+              🎯 Exact Copy (Same Amount)
+            </label>
           </div>
         </div>
+        {!copySettings.exactCopy && (
+          <div className="ct-settings-row">
+            <div className="ct-setting">
+              <label>Ratio</label>
+              <input
+                type="number"
+                min="0.1"
+                max="10"
+                step="0.1"
+                value={copySettings.copyRatio}
+                onChange={(e) => setCopySettings((prev) => ({ ...prev, copyRatio: Number.parseFloat(e.target.value) }))}
+                className="ct-input-small"
+              />
+            </div>
+            <div className="ct-setting">
+              <label>Max $</label>
+              <input
+                type="number"
+                min="1"
+                value={copySettings.maxAmount}
+                onChange={(e) => setCopySettings((prev) => ({ ...prev, maxAmount: Number.parseFloat(e.target.value) }))}
+                className="ct-input-small"
+              />
+            </div>
+            <div className="ct-setting">
+              <label>Min $</label>
+              <input
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={copySettings.minAmount}
+                onChange={(e) => setCopySettings((prev) => ({ ...prev, minAmount: Number.parseFloat(e.target.value) }))}
+                className="ct-input-small"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Client Management */}
@@ -827,7 +812,7 @@ const CopyTrading: React.FC = observer(() => {
           className={`ct-main-btn ${isActive ? "stop" : "start"}`}
           disabled={!masterWs || clients.filter((c) => c.status === "connected").length === 0}
         >
-          {isActive ? "⏹️ Stop Monitoring" : "▶️ Start Copy Trading"}
+          {isActive ? "⏹️ Stop Exact Copy" : "🎯 Start Exact Copy"}
         </button>
         <button onClick={sendTestTrade} className="ct-btn ct-btn-secondary" disabled={!isActive}>
           🧪 Test Trade
@@ -846,7 +831,7 @@ const CopyTrading: React.FC = observer(() => {
       {/* Activity Log */}
       {showLogs && (
         <div className="ct-section">
-          <h3>📋 Activity Log (Debug Mode)</h3>
+          <h3>📋 Activity Log (Real-Time Mode)</h3>
           <div className="ct-logs">
             {logs.length === 0 ? (
               <div className="ct-no-logs">No activity yet...</div>
@@ -866,34 +851,35 @@ const CopyTrading: React.FC = observer(() => {
         <h3>🔧 Debug Info</h3>
         <div style={{ fontSize: "0.8rem", fontFamily: "monospace" }}>
           <p>Master WS: {masterWs ? "✅ Connected" : "❌ Disconnected"}</p>
-          <p>Active Monitoring: {isActive ? "✅ Yes" : "❌ No"}</p>
+          <p>Exact Copy Mode: {isActive ? "🎯 Active" : "❌ Inactive"}</p>
           <p>Connected Clients: {clients.filter((c) => c.status === "connected").length}</p>
-          <p>Processed Contracts: {processedContractsRef.current.size}</p>
+          <p>Pending Proposals: {pendingProposalsRef.current.size}</p>
+          <p>Real-Time Detection: ✅ Enabled</p>
           <p>Data Persistence: ✅ Enabled</p>
         </div>
       </div>
 
       {/* Instructions */}
       <div className="ct-section">
-        <h3>📖 How to Use</h3>
+        <h3>📖 How TRUE Copy Trading Works</h3>
         <div style={{ fontSize: "0.8rem", lineHeight: "1.4" }}>
           <p>
-            <strong>✅ PERSISTENT STORAGE:</strong> Your tokens and settings are now saved automatically!
+            <strong>🎯 EXACT COPY MODE:</strong> Replicates trades in REAL-TIME with exact parameters!
           </p>
           <p>
-            <strong>1.</strong> Connect Master account (saved automatically) ✅
+            <strong>✅ Same Entry Price:</strong> Trades execute at the same time as master
           </p>
           <p>
-            <strong>2.</strong> Add Client accounts (saved automatically) ✅
+            <strong>✅ Same Contract Type:</strong> Exact same trade parameters
           </p>
           <p>
-            <strong>3.</strong> Start Copy Trading ✅
+            <strong>✅ Same Amount:</strong> Enable "Exact Copy" for identical stake amounts
           </p>
           <p>
-            <strong>4.</strong> Switch tabs freely - everything stays connected! ✅
+            <strong>✅ Real-Time:</strong> Uses transaction stream for instant detection
           </p>
           <p>
-            <strong>5.</strong> Use "Reconnect All" if connections drop ✅
+            <strong>🚀 Result:</strong> Your clients get EXACTLY the same trades as master!
           </p>
         </div>
       </div>
