@@ -86,7 +86,7 @@
     </statement>
     <statement name="INITIALIZATION">
       <block type="procedures_callnoreturn" id="uul51-S~5I#K0vS}^~w9">
-        <mutation xmlns="http://www.w3.org/1999/xhtml" name="BinaryTools 2023 || UNDER 8  Bot Free">
+        <mutation xmlns="http://www.w3.org/1999/xhtml" name="Tradeprofx 2025 || UNDER 8  Bot Free">
           <arg name="Stake Initial"></arg>
           <arg name="Take Profit"></arg>
           <arg name="Stop Loss"></arg>
@@ -136,7 +136,7 @@
         </value>
         <value name="ARG7">
           <block type="math_number" id="Km-]UIK?s}D[%*S{WNGm">
-            <field name="NUM">0</field>
+            <field name="NUM">1</field>
           </block>
         </value>
         <value name="ARG8">
@@ -146,7 +146,7 @@
         </value>
         <value name="ARG9">
           <block type="math_number" id="sEPJH$F@;:4)%~ps*l^y">
-            <field name="NUM">1</field>
+            <field name="NUM">8</field>
           </block>
         </value>
       </block>
@@ -165,7 +165,7 @@
         </value>
         <value name="AMOUNT">
           <shadow type="math_number" id="h!%UDD8RTF[9S?B)4e3I">
-            <field name="NUM">10</field>
+            <field name="NUM">2</field>
           </shadow>
           <block type="variables_get" id="Li)t#+MmFhK@mYM%kRz9">
             <field name="VAR" id="6t:g@o`J#(D~[Ieq*@`(">Stake</field>
