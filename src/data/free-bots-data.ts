@@ -1,87 +1,45 @@
+
 export interface BotData {
   id: string
   name: string
-  description: string
-  strategy: string
-  market: string
-  profitThreshold: number
-  lossThreshold: number
-  initialStake: number
-  rating: number
-  downloads: number
-  xmlFileName: string // Just the filename, we'll add path automatically
-  tags: string[]
-  author: string
-  createdDate: string
-  category: string
-  difficulty: "Beginner" | "Intermediate" | "Advanced"
-  isPopular?: boolean
-  isFeatured?: boolean
 }
 
 export const FREE_BOTS_DATA: BotData[] = [
-  // Real Trading Bots from XML files
   {
     id: "percentage-even-odd-bot",
     name: "Percentage Even Odd Bot",
-    xmlFileName: "percentage-even-odd-bot.xml",
-    tags: ["Even/Odd", "Digits", "Analysis", "Percentage", "Auto-Trade"],
   },
   {
     id: "under-8-tradepro",
     name: "Under 8 by TradePro",
-    xmlFileName: "under-8-tradepro.xml",
-    tags: ["Under/Over", "Martingale", "Professional", "Compound", "Risk Management"],
   },
   {
     id: "tradeprofx-accumulators",
     name: "TradeProfx Accumulators",
-    description:
-    xmlFileName: "tradeprofx-accumulators.xml",
-    tags: ["Accumulator", "Martingale", "Growth Rate", "Tick Analysis"],
   },
   {
     id: "dp-entry-point-bot",
     name: "DP Entry Point Bot V1",
-    xmlFileName: "dp-entry-point-bot.xml",
-    tags: ["Call/Put", "Entry Point", "Simple", "Beginner-Friendly"],
   },
   {
     id: "rise-fall-dbot",
     name: "Rise Fall DBot",
-    xmlFileName: "rise-fall-dbot.xml",
-    tags: ["Rise/Fall", "Adaptive", "Profit Target", "Dynamic"],
   },
   {
     id: "auto-c4-volt-2",
     name: "AUTO C4 ⚡VOLT 2",
-    xmlFileName: "auto-c4-volt-2.xml",
-    tags: ["Higher/Lower", "Automated", "Martingale", "High Performance", "Notifications"],
-    author: "C4 Trading",
-    createdDate: "2024-02-15",
-    category: "callput",
-    difficulty: "Advanced",
-    isPopular: true,
-    isFeatured: true,
   },
-
-  // Additional Sample Bots (you can remove these later)
   {
     id: "simple-martingale",
     name: "Simple Martingale",
-    xmlFileName: "simple-martingale.xml",
-    tags: ["Martingale", "Beginner", "Simple"],
   },
   {
     id: "trend-rider",
     name: "Trend Rider",
-    xmlFileName: "trend-rider.xml",
-    tags: ["Trend Following", "Moving Average", "Momentum"],
   },
   {
     id: "safe-trader",
     name: "Safe Trader",
-    xmlFileName: "safe-trader.xml",
   },
 ]
 
@@ -110,4 +68,3 @@ export const DIFFICULTY_COLORS = {
   Intermediate: "#f59e0b", // Orange
   Advanced: "#ef4444", // Red
 }
-
