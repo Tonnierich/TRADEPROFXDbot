@@ -36,18 +36,10 @@ export const FREE_BOTS_DATA: BotData[] = [
     xmlFileName: "auto-c4-volt-2.xml",
   },
   {
-    id: "simple-martingale",
-    name: "Simple Martingale",
-    xmlFileName: "simple-martingale.xml",
+    id: "medaleone-bot", // Added this bot
+    name: "Medaleone Bot", // Added this bot
+    xmlFileName: "medaleone-bot.xml", // Added this bot
   },
-  {
-    id: "trend-rider",
-    name: "Trend Rider",
-    xmlFileName: "trend-rider.xml",
-  },
-  {
-    id: "safe-trader",
-    name: "Safe Trader",
-    xmlFileName: "safe-trader.xml",
-  },
+  // Removed "Simple Martingale" and "Trend Rider" as their XML files are not present
 ]
+
