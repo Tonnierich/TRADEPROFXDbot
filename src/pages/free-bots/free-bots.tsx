@@ -130,13 +130,7 @@ const FreeBots: React.FC = () => {
         }}
       >
         {displayedBots.map((bot) => (
-          <BotCard
-            key={bot.id}
-            bot={bot}
-            isLoading={loadingBotId === bot.id}
-            onLoad={() => handleLoadBot(bot)}
-            onDownload={() => handleDownloadBot(bot)}
-          />
+          <BotCard key={bot.id} bot={bot} isLoading={loadingBotId === bot.id} onLoad={() => handleLoadBot(bot)} />
         ))}
       </div>
 
@@ -163,8 +157,7 @@ const BotCard: React.FC<{
   bot: BotData
   isLoading: boolean
   onLoad: () => void
-  onDownload: () => void
-}> = ({ bot, isLoading, onLoad, onDownload }) => {
+}> = ({ bot, isLoading, onLoad }) => {
   return (
     <div
       style={{
@@ -228,25 +221,6 @@ const BotCard: React.FC<{
           }}
         >
           {isLoading ? "⏳" : "▶️"} {isLoading ? "Loading..." : "Load"}
-        </button>
-        <button
-          onClick={onDownload}
-          style={{
-            width: "2.8rem",
-            height: "2.8rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "var(--general-section-1)",
-            color: "var(--text-prominent)",
-            border: "1px solid var(--general-section-3)",
-            borderRadius: "0.3rem",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-            fontSize: "0.9rem",
-          }}
-        >
-          📥
         </button>
       </div>
     </div>
