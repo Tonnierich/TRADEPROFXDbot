@@ -1,45 +1,65 @@
-
 export interface BotData {
   id: string
   name: string
+  category: string
+  isPopular?: boolean
+  isFeatured?: boolean
 }
 
 export const FREE_BOTS_DATA: BotData[] = [
   {
     id: "percentage-even-odd-bot",
     name: "Percentage Even Odd Bot",
+    category: "digits",
+    isPopular: true,
+    isFeatured: true,
   },
   {
     id: "under-8-tradepro",
     name: "Under 8 by TradePro",
+    category: "digits",
+    isPopular: true,
+    isFeatured: true,
   },
   {
     id: "tradeprofx-accumulators",
     name: "TradeProfx Accumulators",
+    category: "accumulator",
+    isFeatured: true,
   },
   {
     id: "dp-entry-point-bot",
     name: "DP Entry Point Bot V1",
+    category: "callput",
+    isPopular: true,
   },
   {
     id: "rise-fall-dbot",
     name: "Rise Fall DBot",
+    category: "digits",
   },
   {
     id: "auto-c4-volt-2",
     name: "AUTO C4 ⚡VOLT 2",
+    category: "callput",
+    isPopular: true,
+    isFeatured: true,
   },
   {
     id: "simple-martingale",
     name: "Simple Martingale",
+    category: "martingale",
   },
   {
     id: "trend-rider",
     name: "Trend Rider",
+    category: "trend",
   },
   {
     id: "safe-trader",
     name: "Safe Trader",
+    category: "conservative",
+    isPopular: true,
   },
 ]
 
