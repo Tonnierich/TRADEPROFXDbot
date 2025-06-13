@@ -3,7 +3,7 @@
 import type React from "react"
 import { useState, useMemo } from "react"
 import { useStore } from "@/hooks/useStore"
-import { FREE_BOTS_DATA, type BotData } from "../../data/free-bots-data" // Updated import
+import { FREE_BOTS_DATA, type BotData } from "../../data/free-bots-data"
 
 console.log("FREE_BOTS_DATA loaded:", FREE_BOTS_DATA.length, "bots")
 console.log(
@@ -18,7 +18,6 @@ const FreeBots: React.FC = () => {
   const store = useStore()
   const [loadingBotId, setLoadingBotId] = useState<string | null>(null)
 
-  // No more filtering or sorting needed as we only display names
   const displayedBots = useMemo(() => FREE_BOTS_DATA, [])
 
   const handleLoadBot = async (bot: BotData) => {
@@ -26,6 +25,8 @@ const FreeBots: React.FC = () => {
 
     try {
       console.log(`🚀 Loading bot: ${bot.name}`)
+      const fetchUrl = `/bots/${bot.xmlFileName}`
+      console.log(`Fetching XML from: ${fetchUrl}`) // This will show the exact URL
 
       // Switch to Bot Builder tab first
       if (store?.dashboard?.setActiveTab) {
@@ -36,9 +37,9 @@ const FreeBots: React.FC = () => {
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       // Fetch the XML file
-      const response = await fetch(`/bots/${bot.xmlFileName}`)
+      const response = await fetch(fetchUrl)
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${bot.xmlFileName}: ${response.status}`)
+        throw new Error(`Failed to fetch ${bot.xmlFileName}: ${response.status} ${response.statusText}`)
       }
 
       const xmlContent = await response.text()
@@ -113,9 +114,6 @@ const FreeBots: React.FC = () => {
           into your bot builder.
         </p>
       </div>
-
-      {/* Search and Sort Controls - Removed */}
-      {/* Category Filters - Removed */}
 
       {/* Results Info */}
       <div style={{ marginBottom: "1.6rem", color: "var(--text-less-prominent)", fontSize: "1.2rem" }}>
