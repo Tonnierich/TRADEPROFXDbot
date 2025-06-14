@@ -1,6 +1,6 @@
 "use client"
 
-import React, { lazy, Suspense, useEffect, useRef, useState } from "react"
+import React, { lazy, Suspense, useEffect, useState } from "react"
 import classNames from "classnames"
 import { observer } from "mobx-react-lite"
 import { useLocation, useNavigate } from "react-router-dom"
@@ -27,7 +27,7 @@ import {
   LegacyGuide1pxIcon,
   LegacyIndicatorsIcon,
   LegacyTemplatesIcon,
-  LegacyDerivIcon,
+  LegacyDerivIcon, // Use LegacyDerivIcon instead of LegacyRobotIcon
 } from "@deriv/quill-icons/Legacy"
 import { requestOidcAuthentication } from "@deriv-com/auth-client"
 import { Localize, localize } from "@deriv-com/translations"
@@ -43,7 +43,7 @@ const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
 const Analysis = lazy(() => import("../analysis/analysis"))
 const FreeBots = lazy(() => import("../free-bots/free-bots"))
-const AITradingBots = lazy(() => import("../ai-trading-bots/ai-trading-bots"))
+const AITradingBots = lazy(() => import("../ai-trading-bots/ai-trading-bots")) // Import AI Trading Bots
 
 // Declare Blockly
 declare var Blockly: any
@@ -73,7 +73,7 @@ const AppWrapper = observer(() => {
   } = run_panel
   const { is_open } = quick_strategy
   const { clear } = summary_card
-  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS, AI_TRADING_BOTS } = DBOT_TABS
+  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS, AI_TRADING_BOTS } = DBOT_TABS // Add AI_TRADING_BOTS
   const init_render = React.useRef(true)
   const hash = [
     "dashboard",
@@ -84,29 +84,28 @@ const AppWrapper = observer(() => {
     "strategies",
     "free-bots",
     "ai-trading-bots",
-  ]
+  ] // Add ai-trading-bots
   const { isDesktop } = useDevice()
   const location = useLocation()
   const navigate = useNavigate()
   const [left_tab_shadow, setLeftTabShadow] = useState<boolean>(false)
   const [right_tab_shadow, setRightTabShadow] = useState<boolean>(false)
 
-  const blocklyDiv = useRef<HTMLDivElement>(null)
-  const toolboxDiv = useRef<HTMLDivElement>(null)
-
   // Force all tabs to be visible
   useEffect(() => {
+    // This ensures all tabs are always visible
     if (typeof window !== "undefined") {
       window.localStorage.setItem("show_analysis_tools", "true")
       window.localStorage.setItem("show_strategies", "true")
       window.localStorage.setItem("show_free_bots", "true")
-      window.localStorage.setItem("show_ai_trading_bots", "true")
+      window.localStorage.setItem("show_ai_trading_bots", "true") // Add AI Trading Bots visibility
       ;(window as any).SHOW_ALL_DBOT_TABS = true
     }
   }, [])
 
   // Add effect to hide SmartTrader, Deriv Trader, and Traders Hub
   useEffect(() => {
+    // Create a style element to inject CSS
     const style = document.createElement("style")
     style.innerHTML = `
       /* Hide platform switcher and Trader's Hub elements */
@@ -133,6 +132,7 @@ const AppWrapper = observer(() => {
     `
     document.head.appendChild(style)
 
+    // Also try to remove elements directly
     const removeElements = () => {
       const selectors = [
         ".platform-switcher",
@@ -153,6 +153,7 @@ const AppWrapper = observer(() => {
       })
     }
 
+    // Run immediately and then periodically to catch dynamically added elements
     removeElements()
     const interval = setInterval(removeElements, 1000)
 
@@ -238,14 +239,20 @@ const AppWrapper = observer(() => {
   }
 
   React.useEffect(() => {
+    // Run on mount and when active tab changes
     updateTabShadowsHeight()
 
+    // ALWAYS ensure tabs are visible, especially after login
     if (typeof window !== "undefined") {
+      // Force all tabs to be visible by setting localStorage flags
       localStorage.setItem("show_analysis_tools", "true")
       localStorage.setItem("show_strategies", "true")
       localStorage.setItem("show_free_bots", "true")
-      localStorage.setItem("show_ai_trading_bots", "true")
+      localStorage.setItem("show_ai_trading_bots", "true") // Add AI Trading Bots visibility
+
+      // Add a global flag to indicate these tabs should be visible
       ;(window as any).SHOW_ALL_DBOT_TABS = true
+
       console.log("Ensuring all tabs are visible after potential login")
     }
 
@@ -264,6 +271,7 @@ const AppWrapper = observer(() => {
       setActiveTour("")
     }
 
+    // Prevent scrolling when tutorial tab is active (only on mobile)
     const mainElement = document.querySelector(".main__container")
     if (active_tab === TUTORIAL && !isDesktop) {
       document.body.style.overflow = "hidden"
@@ -278,20 +286,25 @@ const AppWrapper = observer(() => {
     }
   }, [active_tab])
 
+  // Add this new useEffect to monitor login state changes
   React.useEffect(() => {
+    // Check if user just logged in by looking at the client object
     const isLoggedIn = !!client?.loginid
 
     if (isLoggedIn) {
       console.log("User logged in, ensuring tabs are visible")
+      // Force all tabs to be visible
       if (typeof window !== "undefined") {
         localStorage.setItem("show_analysis_tools", "true")
         localStorage.setItem("show_strategies", "true")
         localStorage.setItem("show_free_bots", "true")
-        localStorage.setItem("show_ai_trading_bots", "true")
+        localStorage.setItem("show_ai_trading_bots", "true") // Add AI Trading Bots visibility
         ;(window as any).SHOW_ALL_DBOT_TABS = true
 
+        // Force a re-render of the tabs
         const tabsContainer = document.querySelector(".main__tabs")
         if (tabsContainer) {
+          // This is a hack to force a re-render
           tabsContainer.classList.add("force-update")
           setTimeout(() => {
             tabsContainer.classList.remove("force-update")
@@ -380,62 +393,6 @@ const AppWrapper = observer(() => {
     }
   }
 
-  useEffect(() => {
-    if (blocklyDiv.current && toolboxDiv.current) {
-      const workspace = Blockly.inject(blocklyDiv.current, {
-        toolbox: toolboxDiv.current,
-        zoom: {
-          controls: true,
-          wheel: true,
-          startScale: 1.0,
-          maxScale: 3,
-          minScale: 0.3,
-          scaleSpeed: 1.2,
-        },
-        grid: {
-          spacing: 20,
-          length: 3,
-          colour: "#ccc",
-          snap: true,
-        },
-      })
-
-      // Define custom blocks (example)
-      Blockly.Blocks["test_block"] = {
-        init: function () {
-          this.appendDummyInput().appendField("Test Block")
-          this.setOutput(true, null)
-          this.setColour(230)
-          this.setTooltip("")
-          this.setHelpUrl("")
-        },
-      }
-
-      Blockly.JavaScript.test_block = (block: any) => {
-        // TODO: Assemble JavaScript into code variable.
-        const code = "'test'"
-        // TODO: Change ORDER_NONE to the correct strength.
-        return [code, Blockly.JavaScript.ORDER_NONE]
-      }
-
-      // Optional: Load saved blocks from local storage or a server
-      // const savedBlocks = localStorage.getItem('savedBlocks');
-      // if (savedBlocks) {
-      //   Blockly.serialization.workspace.load(JSON.parse(savedBlocks), workspace);
-      // }
-
-      // Optional: Save blocks to local storage on changes
-      // workspace.addChangeListener(() => {
-      //   const blocklyData = Blockly.serialization.workspace.save(workspace);
-      //   localStorage.setItem('savedBlocks', JSON.stringify(blocklyData));
-      // });
-
-      return () => {
-        workspace.dispose()
-      }
-    }
-  }, [])
-
   return (
     <React.Fragment>
       <div className="main">
@@ -466,9 +423,7 @@ const AppWrapper = observer(() => {
                   </>
                 }
                 id="id-bot-builder"
-              >
-                <div ref={blocklyDiv} style={{ height: "600px", width: "100%" }}></div>
-              </div>
+              ></div>
               <div
                 label={
                   <>
@@ -552,7 +507,7 @@ const AppWrapper = observer(() => {
                   <FreeBots />
                 </Suspense>
               </div>
-              {/* AI Trading Bots Tab - This is where users can switch platforms */}
+              {/* AI Trading Bots Tab */}
               <div
                 label={
                   <>
