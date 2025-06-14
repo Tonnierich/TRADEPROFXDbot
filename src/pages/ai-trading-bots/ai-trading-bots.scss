@@ -1,161 +1,213 @@
 .ai-trading-bots {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background: var(--general-main-1);
-    overflow: hidden;
-
-    &__header {
-        padding: 1.6rem 2.4rem 1.2rem;
-        background: var(--general-section-1);
-        border-bottom: 1px solid var(--border-normal);
-        flex-shrink: 0;
-
-        @media (max-width: 768px) {
-            padding: 1.2rem 1.6rem 1rem;
-        }
-    }
-
-    &__title {
-        font-size: 2rem;
-        font-weight: 600;
-        color: var(--text-prominent);
-        margin: 0 0 0.8rem 0;
-        line-height: 1.2;
-
-        @media (max-width: 768px) {
-            font-size: 1.8rem;
-        }
-    }
-
-    &__description {
-        font-size: 1.4rem;
-        color: var(--text-general);
-        margin: 0;
-        line-height: 1.4;
-
-        @media (max-width: 768px) {
-            font-size: 1.3rem;
-        }
-    }
-
-    &__content {
-        position: relative;
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        overflow: hidden;
-    }
-
-    &__loader {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--general-main-1);
-        z-index: 10;
-    }
-
-    &__error {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: var(--general-main-1);
-        z-index: 10;
-        padding: 2rem;
-        text-align: center;
-
-        p {
-            color: var(--text-general);
-            font-size: 1.4rem;
-            margin-bottom: 1.6rem;
-        }
-    }
-
-    &__retry-btn {
-        background: var(--button-primary-default);
-        color: var(--text-colored-background);
-        border: none;
-        border-radius: 0.4rem;
-        padding: 1rem 2rem;
-        font-size: 1.4rem;
-        cursor: pointer;
-        transition: background-color 0.2s ease;
-
-        &:hover {
-            background: var(--button-primary-hover);
-        }
-
-        &:active {
-            background: var(--button-primary-active);
-        }
-
-        @media (max-width: 768px) {
-            padding: 1.2rem 2.4rem;
-            font-size: 1.6rem;
-        }
-    }
-
-    &__iframe {
-        width: 100%;
-        height: 100%;
-        border: none;
-        background: var(--general-main-1);
-        transition: opacity 0.3s ease;
-
-        &--loading {
-            opacity: 0;
-        }
-
-        @media (max-width: 768px) {
-            min-height: 100%;
-        }
-    }
-
-    // Mobile specific styles
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--general-main-1);
+  
+  &__header {
+    padding: 2rem;
+    background: var(--general-main-2);
+    border-bottom: 1px solid var(--border-normal);
+    
     @media (max-width: 768px) {
-        height: calc(100vh - 6rem);
-
-        .ai-trading-bots__content {
-            height: calc(100% - 7rem);
-        }
+      padding: 1rem;
     }
-
-    // Desktop specific styles
-    @media (min-width: 769px) {
-        height: calc(100vh - 9rem);
-
-        .ai-trading-bots__content {
-            height: calc(100% - 8rem);
-        }
+  }
+  
+  &__title {
+    font-size: 2.4rem;
+    font-weight: bold;
+    color: var(--text-prominent);
+    margin-bottom: 0.8rem;
+    
+    @media (max-width: 768px) {
+      font-size: 2rem;
     }
-}
-
-// Dark theme support
-[data-theme='dark'] .ai-trading-bots {
-    .ai-trading-bots__header {
-        background: var(--general-section-1);
+  }
+  
+  &__description {
+    font-size: 1.4rem;
+    color: var(--text-general);
+    margin-bottom: 2rem;
+    line-height: 1.5;
+    
+    @media (max-width: 768px) {
+      font-size: 1.2rem;
+      margin-bottom: 1.5rem;
     }
-
-    .ai-trading-bots__iframe {
-        background: var(--general-main-1);
+  }
+  
+  // External Apps Section
+  &__external-apps {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 1rem;
+  }
+  
+  &__external-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 1.2rem 2rem;
+    border: none;
+    border-radius: 0.4rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    
+    &--primary {
+      background: var(--brand-red-coral);
+      color: var(--text-colored-background);
+      
+      &:hover {
+        background: var(--brand-red-coral-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(255, 68, 79, 0.3);
+      }
     }
-}
-
-// RTL support - Direct CSS without any mixins
-[dir='rtl'] .ai-trading-bots {
-    .ai-trading-bots__header {
-        text-align: right;
+    
+    @media (max-width: 768px) {
+      padding: 1rem 1.5rem;
+      font-size: 1.2rem;
+      width: 100%;
+      justify-content: center;
     }
+  }
+  
+  // Tab Navigation
+  &__tabs {
+    display: flex;
+    gap: 0.4rem;
+    background: var(--general-section-1);
+    padding: 0.4rem;
+    border-radius: 0.8rem;
+    margin-bottom: 1rem;
+    
+    @media (max-width: 768px) {
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+  }
+  
+  &__tab {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 1rem 2rem;
+    border: none;
+    border-radius: 0.4rem;
+    font-size: 1.4rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: transparent;
+    color: var(--text-general);
+    
+    &--active {
+      background: var(--general-main-1);
+      color: var(--text-prominent);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    &--external {
+      color: var(--brand-red-coral);
+      
+      &:hover {
+        background: rgba(255, 68, 79, 0.1);
+      }
+    }
+    
+    &:hover:not(&--active) {
+      background: var(--general-hover);
+    }
+    
+    @media (max-width: 768px) {
+      padding: 0.8rem 1.5rem;
+      font-size: 1.2rem;
+      justify-content: center;
+    }
+  }
+  
+  &__content {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  &__iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: var(--general-main-1);
+    transition: opacity 0.3s ease;
+    
+    &--loading {
+      opacity: 0.7;
+    }
+  }
+  
+  &__loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+  }
+  
+  &__error {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    padding: 2rem;
+    background: var(--general-main-2);
+    border-radius: 0.8rem;
+    border: 1px solid var(--border-normal);
+    z-index: 10;
+    
+    p {
+      color: var(--text-general);
+      margin-bottom: 1.5rem;
+      font-size: 1.4rem;
+    }
+  }
+  
+  &__retry-btn {
+    padding: 1rem 2rem;
+    background: var(--brand-red-coral);
+    color: var(--text-colored-background);
+    border: none;
+    border-radius: 0.4rem;
+    font-size: 1.4rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    
+    &:hover {
+      background: var(--brand-red-coral-hover);
+    }
+  }
+  
+  // RTL Support
+  [dir='rtl'] & {
+    &__external-btn,
+    &__tab {
+      flex-direction: row-reverse;
+    }
+  }
+  
+  // Dark theme adjustments
+  .theme--dark & {
+    &__external-btn--primary {
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      
+      &:hover {
+        box-shadow: 0 4px 12px rgba(255, 68, 79, 0.4);
+      }
+    }
+  }
 }
