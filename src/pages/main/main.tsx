@@ -27,7 +27,7 @@ import {
   LegacyGuide1pxIcon,
   LegacyIndicatorsIcon,
   LegacyTemplatesIcon,
-  LegacyRobotIcon,
+  LegacyDerivIcon, // Use LegacyDerivIcon instead of LegacyRobotIcon
 } from "@deriv/quill-icons/Legacy"
 import { requestOidcAuthentication } from "@deriv-com/auth-client"
 import { Localize, localize } from "@deriv-com/translations"
@@ -38,6 +38,7 @@ import Dashboard from "../dashboard"
 import RunStrategy from "../dashboard/run-strategy"
 import Strategies from "../strategies/strategies"
 import "./main.scss"
+import Blackly from "blackly" // Declare Blackly
 
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
@@ -324,7 +325,7 @@ const AppWrapper = observer(() => {
         } else {
           trashcanX = isDbotRTL() ? 20 : window.innerWidth - 100
         }
-        Blockly?.derivWorkspace?.trashcan?.setTrashcanPosition(trashcanX, trashcanY)
+        Blackly.derivWorkspace.trashcan.setTrashcanPosition(trashcanX, trashcanY)
       }
     }, 100)
 
@@ -511,7 +512,7 @@ const AppWrapper = observer(() => {
               <div
                 label={
                   <>
-                    <LegacyRobotIcon
+                    <LegacyDerivIcon
                       height="16px"
                       width="16px"
                       fill="var(--text-general)"
