@@ -38,7 +38,6 @@ import Dashboard from "../dashboard"
 import RunStrategy from "../dashboard/run-strategy"
 import Strategies from "../strategies/strategies"
 import "./main.scss"
-import Blackly from "blackly" // Declare Blackly
 
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
@@ -325,7 +324,7 @@ const AppWrapper = observer(() => {
         } else {
           trashcanX = isDbotRTL() ? 20 : window.innerWidth - 100
         }
-        Blackly.derivWorkspace.trashcan.setTrashcanPosition(trashcanX, trashcanY)
+        Blockly.derivWorkspace.trashcan.setTrashcanPosition(trashcanX, trashcanY)
       }
     }, 100)
 
