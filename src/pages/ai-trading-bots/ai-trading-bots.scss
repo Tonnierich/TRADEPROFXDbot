@@ -182,11 +182,9 @@
     }
 }
 
-// RTL support
-@include rtl {
-    .ai-trading-bots {
-        &__header {
-            text-align: right;
-        }
+// RTL support - Fixed syntax
+[dir='rtl'] .ai-trading-bots {
+    &__header {
+        text-align: right;
     }
 }
