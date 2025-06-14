@@ -1,86 +1,77 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { observer } from "mobx-react-lite"
-import { Localize } from "@deriv-com/translations"
+import type React from "react"
+import { useState } from "react"
 import ChunkLoader from "@/components/loader/chunk-loader"
+import { localize } from "@deriv-com/translations"
 import "./ai-trading-bots.scss"
 
-const AITradingBots = observer(() => {
+const AITradingBots: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    // Set loading to false after iframe loads
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 2000) // Give iframe time to load
-
-    return () => clearTimeout(timer)
-  }, [])
+  const [hasError, setHasError] = useState(false)
 
   const handleIframeLoad = () => {
     setIsLoading(false)
-    setError(null)
   }
 
   const handleIframeError = () => {
     setIsLoading(false)
-    setError("Failed to load AI Trading Bots application")
+    setHasError(true)
+  }
+
+  const retryLoad = () => {
+    setHasError(false)
+    setIsLoading(true)
+    // Force iframe reload by changing src
+    const iframe = document.getElementById("ai-trading-bots-iframe") as HTMLIFrameElement
+    if (iframe) {
+      const currentSrc = iframe.src
+      iframe.src = ""
+      setTimeout(() => {
+        iframe.src = currentSrc
+      }, 100)
+    }
   }
 
   return (
     <div className="ai-trading-bots">
       <div className="ai-trading-bots__header">
-        <h2 className="ai-trading-bots__title">
-          <Localize i18n_default_text="AI Trading Bots" />
-        </h2>
+        <h1 className="ai-trading-bots__title">AI Trading Bots</h1>
         <p className="ai-trading-bots__description">
-          <Localize i18n_default_text="Advanced AI-powered trading bots with real-time signals and automated strategies" />
+          Advanced AI-powered trading bots for automated trading strategies
         </p>
       </div>
 
       <div className="ai-trading-bots__content">
         {isLoading && (
           <div className="ai-trading-bots__loader">
-            <ChunkLoader message="Loading AI Trading Bots..." />
+            <ChunkLoader message={localize("Loading AI Trading Bots...")} />
           </div>
         )}
 
-        {error && (
+        {hasError && (
           <div className="ai-trading-bots__error">
-            <p>{error}</p>
-            <button
-              onClick={() => {
-                setError(null)
-                setIsLoading(true)
-                // Force iframe reload
-                const iframe = document.getElementById("ai-trading-bots-iframe") as HTMLIFrameElement
-                if (iframe) {
-                  iframe.src = iframe.src
-                }
-              }}
-              className="ai-trading-bots__retry-btn"
-            >
-              <Localize i18n_default_text="Retry" />
+            <p>Failed to load AI Trading Bots. Please check your connection and try again.</p>
+            <button className="ai-trading-bots__retry-btn" onClick={retryLoad}>
+              Retry
             </button>
           </div>
         )}
 
         <iframe
           id="ai-trading-bots-iframe"
-          src="https://v0-derivtradingbots.vercel.app/"
           className={`ai-trading-bots__iframe ${isLoading ? "ai-trading-bots__iframe--loading" : ""}`}
-          title="AI Trading Bots Application"
-          frameBorder="0"
-          allowFullScreen
+          src="https://v0-derivtradingbots.vercel.app/"
+          title="AI Trading Bots"
           onLoad={handleIframeLoad}
           onError={handleIframeError}
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          loading="lazy"
+          style={{ display: hasError ? "none" : "block" }}
         />
       </div>
     </div>
   )
-})
+}
 
 export default AITradingBots
