@@ -23,7 +23,12 @@ import {
   LabelPairedObjectsColumnCaptionRegularIcon,
   LabelPairedPuzzlePieceTwoCaptionBoldIcon,
 } from "@deriv/quill-icons/LabelPaired"
-import { LegacyGuide1pxIcon, LegacyIndicatorsIcon, LegacyTemplatesIcon } from "@deriv/quill-icons/Legacy"
+import {
+  LegacyGuide1pxIcon,
+  LegacyIndicatorsIcon,
+  LegacyTemplatesIcon,
+  LegacyRobotIcon,
+} from "@deriv/quill-icons/Legacy"
 import { requestOidcAuthentication } from "@deriv-com/auth-client"
 import { Localize, localize } from "@deriv-com/translations"
 import { useDevice } from "@deriv-com/ui"
@@ -37,7 +42,8 @@ import "./main.scss"
 const ChartWrapper = lazy(() => import("../chart/chart-wrapper"))
 const Tutorial = lazy(() => import("../tutorials"))
 const Analysis = lazy(() => import("../analysis/analysis"))
-const FreeBots = lazy(() => import("../free-bots/free-bots")) // ONLY CHANGE: Import the correct FreeBots component
+const FreeBots = lazy(() => import("../free-bots/free-bots"))
+const AITradingBots = lazy(() => import("../ai-trading-bots/ai-trading-bots")) // Import AI Trading Bots
 
 // Declare Blockly
 declare var Blockly: any
@@ -67,9 +73,18 @@ const AppWrapper = observer(() => {
   } = run_panel
   const { is_open } = quick_strategy
   const { clear } = summary_card
-  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS } = DBOT_TABS // Add FREE_BOTS
+  const { DASHBOARD, BOT_BUILDER, CHART, TUTORIAL, ANALYSIS, STRATEGIES, FREE_BOTS, AI_TRADING_BOTS } = DBOT_TABS // Add AI_TRADING_BOTS
   const init_render = React.useRef(true)
-  const hash = ["dashboard", "bot_builder", "chart", "tutorial", "analysis", "strategies", "free-bots"] // Add free-bots
+  const hash = [
+    "dashboard",
+    "bot_builder",
+    "chart",
+    "tutorial",
+    "analysis",
+    "strategies",
+    "free-bots",
+    "ai-trading-bots",
+  ] // Add ai-trading-bots
   const { isDesktop } = useDevice()
   const location = useLocation()
   const navigate = useNavigate()
@@ -78,11 +93,12 @@ const AppWrapper = observer(() => {
 
   // Force all tabs to be visible
   useEffect(() => {
-    // This ensures the Analysis Tools and Strategies tabs are always visible
+    // This ensures all tabs are always visible
     if (typeof window !== "undefined") {
       window.localStorage.setItem("show_analysis_tools", "true")
       window.localStorage.setItem("show_strategies", "true")
-      window.localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+      window.localStorage.setItem("show_free_bots", "true")
+      window.localStorage.setItem("show_ai_trading_bots", "true") // Add AI Trading Bots visibility
       ;(window as any).SHOW_ALL_DBOT_TABS = true
     }
   }, [])
@@ -158,7 +174,6 @@ const AppWrapper = observer(() => {
   React.useEffect(() => {
     const el_dashboard = document.getElementById("id-dbot-dashboard")
     const el_tutorial = document.getElementById("id-tutorials")
-
     if (el_dashboard && el_tutorial) {
       const observer_dashboard = new window.IntersectionObserver(
         ([entry]) => {
@@ -170,7 +185,7 @@ const AppWrapper = observer(() => {
         },
         {
           root: null,
-          threshold: 0.5, // set offset 0.1 means trigger if atleast 10% of element in viewport
+          threshold: 0.5,
         },
       )
 
@@ -184,7 +199,7 @@ const AppWrapper = observer(() => {
         },
         {
           root: null,
-          threshold: 0.5, // set offset 0.1 means trigger if atleast 10% of element in viewport
+          threshold: 0.5,
         },
       )
 
@@ -232,7 +247,8 @@ const AppWrapper = observer(() => {
       // Force all tabs to be visible by setting localStorage flags
       localStorage.setItem("show_analysis_tools", "true")
       localStorage.setItem("show_strategies", "true")
-      localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+      localStorage.setItem("show_free_bots", "true")
+      localStorage.setItem("show_ai_trading_bots", "true") // Add AI Trading Bots visibility
 
       // Add a global flag to indicate these tabs should be visible
       ;(window as any).SHOW_ALL_DBOT_TABS = true
@@ -281,7 +297,8 @@ const AppWrapper = observer(() => {
       if (typeof window !== "undefined") {
         localStorage.setItem("show_analysis_tools", "true")
         localStorage.setItem("show_strategies", "true")
-        localStorage.setItem("show_free_bots", "true") // Add Free Bots visibility
+        localStorage.setItem("show_free_bots", "true")
+        localStorage.setItem("show_ai_trading_bots", "true") // Add AI Trading Bots visibility
         ;(window as any).SHOW_ALL_DBOT_TABS = true
 
         // Force a re-render of the tabs
@@ -312,16 +329,13 @@ const AppWrapper = observer(() => {
     }, 100)
 
     return () => {
-      clearTimeout(trashcan_init_id) // Clear the timeout on unmount
+      clearTimeout(trashcan_init_id)
     }
-    //eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active_tab, is_drawer_open])
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
     if (dashboard_strategies.length > 0) {
-      // Needed to pass this to the Callback Queue as on tab changes
-      // document title getting override by 'Bot | Deriv' only
       timer = setTimeout(() => {
         updateWorkspaceName()
       })
@@ -342,7 +356,6 @@ const AppWrapper = observer(() => {
         }, 10)
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [active_tab],
   )
 
@@ -365,11 +378,9 @@ const AppWrapper = observer(() => {
               }
             : {}),
         }).catch((err) => {
-          // eslint-disable-next-line no-console
           console.error(err)
         })
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error(error)
       }
     }
@@ -391,7 +402,7 @@ const AppWrapper = observer(() => {
           })}
         >
           <div>
-            {!isDesktop && left_tab_shadow && <span className="tabs-shadow tabs-shadow--left" />}{" "}
+            {!isDesktop && left_tab_shadow && <span className="tabs-shadow tabs-shadow--left" />}
             <Tabs active_index={active_tab} className="main__tabs" onTabItemClick={handleTabChange} top>
               <div
                 label={
@@ -496,8 +507,27 @@ const AppWrapper = observer(() => {
                   <FreeBots />
                 </Suspense>
               </div>
+              {/* AI Trading Bots Tab */}
+              <div
+                label={
+                  <>
+                    <LegacyRobotIcon
+                      height="16px"
+                      width="16px"
+                      fill="var(--text-general)"
+                      className="icon-general-fill-g-path"
+                    />
+                    <Localize i18n_default_text="AI Trading Bots" />
+                  </>
+                }
+                id="id-ai-trading-bots"
+              >
+                <Suspense fallback={<ChunkLoader message={localize("Please wait, loading AI trading bots...")} />}>
+                  <AITradingBots />
+                </Suspense>
+              </div>
             </Tabs>
-            {!isDesktop && right_tab_shadow && <span className="tabs-shadow tabs-shadow--right" />}{" "}
+            {!isDesktop && right_tab_shadow && <span className="tabs-shadow tabs-shadow--right" />}
           </div>
         </div>
       </div>
@@ -523,7 +553,7 @@ const AppWrapper = observer(() => {
         portal_element_id="modal_root"
         title={dialog_options?.title}
         login={handleLoginGeneration}
-        dismissable={dialog_options?.dismissable} // Prevents closing on outside clicks
+        dismissable={dialog_options?.dismissable}
         is_closed_on_cancel={dialog_options?.is_closed_on_cancel}
       >
         {dialog_options?.message}
@@ -533,4 +563,3 @@ const AppWrapper = observer(() => {
 })
 
 export default AppWrapper
-
