@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import { observer } from "mobx-react-lite"
 import ChunkLoader from "@/components/loader/chunk-loader"
 import { localize } from "@deriv-com/translations"
+import { LegacyOpenLink1pxIcon } from "@deriv/quill-icons/Legacy"
 import "./ai-trading-bots.scss"
 
 type AITradingBotsProps = {}
@@ -15,16 +16,16 @@ const AITradingBots: React.FC<AITradingBotsProps> = observer(() => {
   const [errorMessage, setErrorMessage] = useState("")
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  // Your AI Trading Bots app URL
-  const AI_TRADING_BOTS_URL = "https://v0-derivtradingbots.vercel.app/"
+  // Your AI Trading Bots app URLs
+  const AI_TRADING_BOTS_URL = "https://v0-derivtradingbots.vercel.app"
+  const TRADEPROFX_URL = "https://tradeprofx.vercel.app"
 
   useEffect(() => {
-    // Set a timeout to handle loading state
     const loadingTimeout = setTimeout(() => {
       if (isLoading) {
         setIsLoading(false)
       }
-    }, 10000) // 10 seconds timeout
+    }, 10000)
 
     return () => clearTimeout(loadingTimeout)
   }, [isLoading])
@@ -45,10 +46,13 @@ const AITradingBots: React.FC<AITradingBotsProps> = observer(() => {
     setHasError(false)
     setErrorMessage("")
 
-    // Force iframe reload
     if (iframeRef.current) {
       iframeRef.current.src = AI_TRADING_BOTS_URL
     }
+  }
+
+  const openTradeProfX = () => {
+    window.open(TRADEPROFX_URL, "_blank", "noopener,noreferrer")
   }
 
   return (
@@ -60,6 +64,18 @@ const AITradingBots: React.FC<AITradingBotsProps> = observer(() => {
             "Access advanced AI-powered trading bots and automated strategies to enhance your trading experience.",
           )}
         </p>
+
+        {/* TradeProfX Access Button */}
+        <div className="ai-trading-bots__external-apps">
+          <button
+            className="ai-trading-bots__external-btn ai-trading-bots__external-btn--primary"
+            onClick={openTradeProfX}
+            title={localize("Open TradeProfX - Advanced Trading Platform")}
+          >
+            <LegacyOpenLink1pxIcon width="16" height="16" />
+            <span>{localize("Launch TradeProfX Platform")}</span>
+          </button>
+        </div>
       </div>
 
       <div className="ai-trading-bots__content">
