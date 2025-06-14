@@ -1,0 +1,192 @@
+@use 'components/shared/styles/constants' as *;
+@use 'components/shared/styles/mixins' as *;
+
+.ai-trading-bots {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    background: var(--general-main-1);
+    overflow: hidden;
+
+    &__header {
+        padding: 1.6rem 2.4rem 1.2rem;
+        background: var(--general-section-1);
+        border-bottom: 1px solid var(--border-normal);
+        flex-shrink: 0;
+
+        @include mobile-or-tablet-screen {
+            padding: 1.2rem 1.6rem 1rem;
+        }
+    }
+
+    &__title {
+        font-size: 2rem;
+        font-weight: 600;
+        color: var(--text-prominent);
+        margin: 0 0 0.8rem 0;
+        line-height: 1.2;
+
+        @include mobile-or-tablet-screen {
+            font-size: 1.8rem;
+        }
+    }
+
+    &__description {
+        font-size: 1.4rem;
+        color: var(--text-general);
+        margin: 0;
+        line-height: 1.4;
+
+        @include mobile-or-tablet-screen {
+            font-size: 1.3rem;
+        }
+    }
+
+    &__content {
+        position: relative;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    &__loader {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--general-main-1);
+        z-index: 10;
+    }
+
+    &__error {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: var(--general-main-1);
+        z-index: 10;
+        padding: 2rem;
+        text-align: center;
+
+        p {
+            color: var(--text-general);
+            font-size: 1.4rem;
+            margin-bottom: 1.6rem;
+        }
+    }
+
+    &__retry-btn {
+        background: var(--button-primary-default);
+        color: var(--text-colored-background);
+        border: none;
+        border-radius: 0.4rem;
+        padding: 1rem 2rem;
+        font-size: 1.4rem;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+
+        &:hover {
+            background: var(--button-primary-hover);
+        }
+
+        &:active {
+            background: var(--button-primary-active);
+        }
+    }
+
+    &__iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: var(--general-main-1);
+        transition: opacity 0.3s ease;
+
+        &--loading {
+            opacity: 0;
+        }
+    }
+
+    // Mobile specific styles
+    @include mobile-or-tablet-screen {
+        height: var(--tab-content-height-mobile);
+
+        &__content {
+            height: calc(100% - 7rem); // Account for header height
+        }
+
+        &__iframe {
+            height: 100%;
+        }
+    }
+
+    // Desktop specific styles
+    @include desktop-screen {
+        height: var(--tab-content-height);
+
+        &__content {
+            height: calc(100% - 8rem); // Account for header height
+        }
+    }
+
+    // Loading animation
+    &__loader {
+        .chunk-loader {
+            &__container {
+                background: transparent;
+            }
+        }
+    }
+
+    // Responsive iframe scaling
+    &__iframe {
+        transform-origin: top left;
+        
+        @include mobile-or-tablet-screen {
+            // Ensure iframe is properly sized on mobile
+            min-height: 100%;
+        }
+    }
+
+    // Error state styling
+    &__error {
+        .ai-trading-bots__retry-btn {
+            @include mobile-or-tablet-screen {
+                padding: 1.2rem 2.4rem;
+                font-size: 1.6rem;
+            }
+        }
+    }
+}
+
+// Dark theme support
+[data-theme='dark'] {
+    .ai-trading-bots {
+        &__header {
+            background: var(--general-section-1);
+        }
+
+        &__iframe {
+            background: var(--general-main-1);
+        }
+    }
+}
+
+// RTL support
+@include rtl {
+    .ai-trading-bots {
+        &__header {
+            text-align: right;
+        }
+    }
+}
