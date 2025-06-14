@@ -1,44 +1,64 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
+import { observer } from "mobx-react-lite"
 import ChunkLoader from "@/components/loader/chunk-loader"
 import { localize } from "@deriv-com/translations"
 import "./ai-trading-bots.scss"
 
-const AITradingBots: React.FC = () => {
+type AITradingBotsProps = {}
+
+const AITradingBots: React.FC<AITradingBotsProps> = observer(() => {
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  // Your AI Trading Bots app URL
+  const AI_TRADING_BOTS_URL = "https://tradeprofx.vercel.app"
+
+  useEffect(() => {
+    // Set a timeout to handle loading state
+    const loadingTimeout = setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false)
+      }
+    }, 10000) // 10 seconds timeout
+
+    return () => clearTimeout(loadingTimeout)
+  }, [isLoading])
 
   const handleIframeLoad = () => {
     setIsLoading(false)
+    setHasError(false)
   }
 
   const handleIframeError = () => {
     setIsLoading(false)
     setHasError(true)
+    setErrorMessage(localize("Failed to load AI Trading Bots. Please check your connection and try again."))
   }
 
-  const retryLoad = () => {
-    setHasError(false)
+  const handleRetry = () => {
     setIsLoading(true)
-    // Force iframe reload by changing src
-    const iframe = document.getElementById("ai-trading-bots-iframe") as HTMLIFrameElement
-    if (iframe) {
-      const currentSrc = iframe.src
-      iframe.src = ""
-      setTimeout(() => {
-        iframe.src = currentSrc
-      }, 100)
+    setHasError(false)
+    setErrorMessage("")
+
+    // Force iframe reload
+    if (iframeRef.current) {
+      iframeRef.current.src = AI_TRADING_BOTS_URL
     }
   }
 
   return (
     <div className="ai-trading-bots">
       <div className="ai-trading-bots__header">
-        <h1 className="ai-trading-bots__title">AI Trading Bots</h1>
+        <h1 className="ai-trading-bots__title">{localize("AI Trading Bots")}</h1>
         <p className="ai-trading-bots__description">
-          Advanced AI-powered trading bots for automated trading strategies
+          {localize(
+            "Access advanced AI-powered trading bots and automated strategies to enhance your trading experience.",
+          )}
         </p>
       </div>
 
@@ -51,27 +71,31 @@ const AITradingBots: React.FC = () => {
 
         {hasError && (
           <div className="ai-trading-bots__error">
-            <p>Failed to load AI Trading Bots. Please check your connection and try again.</p>
-            <button className="ai-trading-bots__retry-btn" onClick={retryLoad}>
-              Retry
+            <p>{errorMessage}</p>
+            <button className="ai-trading-bots__retry-btn" onClick={handleRetry}>
+              {localize("Retry")}
             </button>
           </div>
         )}
 
         <iframe
-          id="ai-trading-bots-iframe"
+          ref={iframeRef}
+          src={AI_TRADING_BOTS_URL}
           className={`ai-trading-bots__iframe ${isLoading ? "ai-trading-bots__iframe--loading" : ""}`}
-          src="https://v0-derivtradingbots.vercel.app/"
-          title="AI Trading Bots"
           onLoad={handleIframeLoad}
           onError={handleIframeError}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+          title="AI Trading Bots"
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
           loading="lazy"
-          style={{ display: hasError ? "none" : "block" }}
+          style={{
+            display: hasError ? "none" : "block",
+          }}
         />
       </div>
     </div>
   )
-}
+})
+
+AITradingBots.displayName = "AITradingBots"
 
 export default AITradingBots
