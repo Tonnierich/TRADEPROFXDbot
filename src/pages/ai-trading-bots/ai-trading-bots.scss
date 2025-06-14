@@ -1,6 +1,3 @@
-@use 'components/shared/styles/constants' as *;
-@use 'components/shared/styles/mixins' as *;
-
 .ai-trading-bots {
     display: flex;
     flex-direction: column;
@@ -15,7 +12,7 @@
         border-bottom: 1px solid var(--border-normal);
         flex-shrink: 0;
 
-        @include mobile-or-tablet-screen {
+        @media (max-width: 768px) {
             padding: 1.2rem 1.6rem 1rem;
         }
     }
@@ -27,7 +24,7 @@
         margin: 0 0 0.8rem 0;
         line-height: 1.2;
 
-        @include mobile-or-tablet-screen {
+        @media (max-width: 768px) {
             font-size: 1.8rem;
         }
     }
@@ -38,7 +35,7 @@
         margin: 0;
         line-height: 1.4;
 
-        @include mobile-or-tablet-screen {
+        @media (max-width: 768px) {
             font-size: 1.3rem;
         }
     }
@@ -103,6 +100,11 @@
         &:active {
             background: var(--button-primary-active);
         }
+
+        @media (max-width: 768px) {
+            padding: 1.2rem 2.4rem;
+            font-size: 1.6rem;
+        }
     }
 
     &__iframe {
@@ -115,56 +117,27 @@
         &--loading {
             opacity: 0;
         }
-    }
 
-    // Mobile specific styles
-    @include mobile-or-tablet-screen {
-        height: var(--tab-content-height-mobile);
-
-        &__content {
-            height: calc(100% - 7rem); // Account for header height
-        }
-
-        &__iframe {
-            height: 100%;
-        }
-    }
-
-    // Desktop specific styles
-    @include desktop-screen {
-        height: var(--tab-content-height);
-
-        &__content {
-            height: calc(100% - 8rem); // Account for header height
-        }
-    }
-
-    // Loading animation
-    &__loader {
-        .chunk-loader {
-            &__container {
-                background: transparent;
-            }
-        }
-    }
-
-    // Responsive iframe scaling
-    &__iframe {
-        transform-origin: top left;
-        
-        @include mobile-or-tablet-screen {
-            // Ensure iframe is properly sized on mobile
+        @media (max-width: 768px) {
             min-height: 100%;
         }
     }
 
-    // Error state styling
-    &__error {
-        .ai-trading-bots__retry-btn {
-            @include mobile-or-tablet-screen {
-                padding: 1.2rem 2.4rem;
-                font-size: 1.6rem;
-            }
+    // Mobile specific styles
+    @media (max-width: 768px) {
+        height: calc(100vh - 6rem);
+
+        &__content {
+            height: calc(100% - 7rem);
+        }
+    }
+
+    // Desktop specific styles
+    @media (min-width: 769px) {
+        height: calc(100vh - 9rem);
+
+        &__content {
+            height: calc(100% - 8rem);
         }
     }
 }
@@ -182,11 +155,9 @@
     }
 }
 
-// RTL support
-@include rtl {
-    .ai-trading-bots {
-        &__header {
-            text-align: right;
-        }
+// RTL support - Direct CSS without mixins
+[dir='rtl'] .ai-trading-bots {
+    &__header {
+        text-align: right;
     }
 }
