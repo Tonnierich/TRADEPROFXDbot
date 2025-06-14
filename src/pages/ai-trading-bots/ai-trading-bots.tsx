@@ -16,7 +16,7 @@ const AITradingBots: React.FC<AITradingBotsProps> = observer(() => {
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
   // Your AI Trading Bots app URL
-  const AI_TRADING_BOTS_URL = "https://tradeprofx.vercel.app/"
+  const AI_TRADING_BOTS_URL = "https://v0-derivtradingbots.vercel.app/"
 
   useEffect(() => {
     // Set a timeout to handle loading state
