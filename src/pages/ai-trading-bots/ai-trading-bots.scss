@@ -127,7 +127,7 @@
     @media (max-width: 768px) {
         height: calc(100vh - 6rem);
 
-        &__content {
+        .ai-trading-bots__content {
             height: calc(100% - 7rem);
         }
     }
@@ -136,28 +136,26 @@
     @media (min-width: 769px) {
         height: calc(100vh - 9rem);
 
-        &__content {
+        .ai-trading-bots__content {
             height: calc(100% - 8rem);
         }
     }
 }
 
 // Dark theme support
-[data-theme='dark'] {
-    .ai-trading-bots {
-        &__header {
-            background: var(--general-section-1);
-        }
+[data-theme='dark'] .ai-trading-bots {
+    .ai-trading-bots__header {
+        background: var(--general-section-1);
+    }
 
-        &__iframe {
-            background: var(--general-main-1);
-        }
+    .ai-trading-bots__iframe {
+        background: var(--general-main-1);
     }
 }
 
-// RTL support - Direct CSS without mixins
+// RTL support - Direct CSS without any mixins
 [dir='rtl'] .ai-trading-bots {
-    &__header {
+    .ai-trading-bots__header {
         text-align: right;
     }
 }
